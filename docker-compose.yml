@@ -109,6 +109,7 @@ services:
       S3_SECRET_KEY: ${RUSTFS_SECRET_KEY:-change-me-local-only}
       DATABASE_URL: postgres://${POSTGRES_USER:-scrapagents}:${POSTGRES_PASSWORD:-change-me-local-only}@postgres:5432/${POSTGRES_DB:-scrapagents}
       TIKA_URL: http://tika:9998
+      TIKA_OCR_LANGUAGE: ${TIKA_OCR_LANGUAGE:-chi_sim+chi_tra+eng+spa}
       BRONZE_REGISTRY: /etc/source_runtime/bronze_registry.json
     volumes:
       - ./bronze/registry.json:/etc/source_runtime/bronze_registry.json:ro

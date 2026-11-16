@@ -187,5 +187,5 @@ def check_producto_oi(models_dir: Path | None = None, root: Path | None = None) 
             gate = gates.get(name) or {}
             signed = gate.get("status") == "approved" and str(gate.get("approved_by") or "").strip()
             if not signed:
-                errors.append(f"{where}: gate {name} of '{path.name}' is not approved by a human")
+                errors.append(f"{where}: gate {name} of '{path.name}' is not approved")
     return errors

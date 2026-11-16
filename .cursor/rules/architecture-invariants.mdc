@@ -17,7 +17,9 @@ Read `AGENTS.md` first. These rules are not negotiable:
    which connects to Obscura (`obscura.sh`, a headless browser in Rust) over CDP (`OBSCURA_CDP_URL`). Do not
    launch a local Chromium elsewhere. Obscura does not replace the legal review: report blocks and ToS, never
    work around them without an H1 decision.
-4. **Stream-to-Rust.** Python extractors stream bytes to `SourceRuntime` (Rust), which sits in front of RustFS.
-   Only complex binaries (PDF, DOCX) go through Apache Tika before loading; everything else loads
-   normally and JSON, XML, HTML and CSV never touch Tika.
-5. **HITL gates.** Stop and wait for a human at H1, H2 and PR merge (see `human-gates.mdc`).
+4. **Stream-to-Rust.** Python extractors stream bytes to `SourceRuntime` (Rust). Every payload is
+   written to RustFS first (structured and binary). Only PDF/DOCX then go through Apache Tika, and
+   the extracted text is written back to RustFS. PostgreSQL `bronze` is loaded by reading the
+   object back from RustFS. JSON, XML, HTML and CSV never touch Tika.
+5. **HITL gates.** Humans own Macro-H1, Producto OI value, and PR merge; `gate-sentinel` may
+   auto-sign green H1/H2 only (see `human-gates.mdc`).

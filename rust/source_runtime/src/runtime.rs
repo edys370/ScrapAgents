@@ -1,6 +1,9 @@
-//! The `SourceRuntime` pipeline, placed in front of RustFS: hash, triage, then load.
-//! Complex binaries (PDF, DOCX) go through Tika before loading; everything else loads directly.
-//! JSON records of a dataset with a typed bronze table are also loaded into that table.
+//! The `SourceRuntime` pipeline.
+//!
+//! Every payload is written to RustFS Landing first: structured documents (JSON, XML, HTML, CSV)
+//! and complex binaries (PDF, DOCX). Only those binaries then go through Apache Tika, and the
+//! extracted text is written back to RustFS next to the raw object. Typed PostgreSQL `bronze`
+//! rows are loaded from the object read back out of RustFS, never from the request buffer.
 
 use crate::bronze::{batch_id, extract_rows, Registry};
 use crate::hashing::hash_bytes;
@@ -85,15 +88,37 @@ impl<L: LandingSink, B: BronzeSink, T: TextExtractor> SourceRuntime<L, B, T> {
         let kind = classify(payload.bytes, &payload.hints);
         let decided = route(kind);
         let mut out = Self::outcome(sha256.clone(), payload.bytes.len(), key.clone(), decided);
+
+        // Page → RustFS, for binaries and for structured payloads. Nothing reaches Postgres
+        // until this object can be read back.
+        self.landing.put(&key, payload.bytes).await?;
+        let stored = self.landing.get(&key).await?;
+        if stored.as_slice() != payload.bytes {
+            return Err(SinkError(format!(
+                "landing object {key} does not match the payload"
+            )));
+        }
+
+        if decided == Route::Tika {
+            // Tika reads the object that is already in RustFS. Its plain text is another
+            // Landing object; a Tika failure leaves the raw bytes in place and fails the call.
+            let text = self
+                .tika
+                .extract_text(&stored, payload.hints.content_type)
+                .await?;
+            let text_key = format!("{key}.txt");
+            self.landing.put(&text_key, text.as_bytes()).await?;
+            out.text_key = Some(text_key);
+        }
+
         match decided {
             Route::Bronze => {
-                self.landing.put(&key, payload.bytes).await?;
                 let format = match kind {
                     PayloadKind::Structured(s) => s,
                     _ => unreachable!("only structured payloads route to bronze"),
                 };
                 if format == Structured::Json {
-                    let doc = match serde_json::from_slice::<serde_json::Value>(payload.bytes) {
+                    let doc = match serde_json::from_slice::<serde_json::Value>(&stored) {
                         Ok(doc) => doc,
                         Err(_) => return self.reject(out, payload, "invalid JSON").await,
                     };
@@ -116,20 +141,10 @@ impl<L: LandingSink, B: BronzeSink, T: TextExtractor> SourceRuntime<L, B, T> {
                     }
                 }
             }
-            Route::Tika => {
-                // The worker sits in front of RustFS: a complex binary is parsed by Tika
-                // *before* anything is loaded, so a Tika failure leaves Landing untouched.
-                let text = self
-                    .tika
-                    .extract_text(payload.bytes, payload.hints.content_type)
-                    .await?;
-                self.landing.put(&key, payload.bytes).await?;
-                let k = format!("{key}.txt");
-                self.landing.put(&k, text.as_bytes()).await?;
-                out.text_key = Some(k);
-            }
+            // The raw file and, when Tika ran, its `.txt` are the Landing copies. Typed bronze
+            // rows exist only for JSON records read back from that object.
+            Route::Tika => {}
             Route::Quarantine => {
-                self.landing.put(&key, payload.bytes).await?;
                 let reason = format!("unrecognised payload ({kind:?})");
                 return self.reject(out, payload, &reason).await;
             }
@@ -233,7 +248,10 @@ mod tests {
         assert_eq!(out.route, Route::Tika);
         assert_eq!(*rt.tika.calls.lock().unwrap(), 1);
         let text_key = out.text_key.unwrap();
-        assert_eq!(rt.landing.0.lock().unwrap()[&text_key], b"extracted text");
+        let landing = rt.landing.0.lock().unwrap();
+        assert_eq!(landing[&out.landing_key], b"%PDF-1.7 data");
+        assert_eq!(landing[&text_key], b"extracted text");
+        drop(landing);
         assert!(rt.bronze.rows.lock().unwrap().is_empty());
     }
 
@@ -274,7 +292,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn tika_failure_loads_nothing_into_landing() {
+    async fn tika_failure_keeps_the_raw_object_and_skips_bronze() {
         let rt = SourceRuntime::new(
             MemoryLanding::default(),
             MemoryBronze::default(),
@@ -284,7 +302,61 @@ mod tests {
             .process(&payload(b"%PDF-1.7 data", Hints::default()))
             .await;
         assert!(res.is_err());
-        assert!(rt.landing.0.lock().unwrap().is_empty());
+        let landing = rt.landing.0.lock().unwrap();
+        assert_eq!(landing.len(), 1);
+        assert!(landing.values().any(|bytes| bytes == b"%PDF-1.7 data"));
+        assert!(landing.keys().all(|key| !key.ends_with(".txt")));
+        drop(landing);
+        assert!(rt.bronze.rows.lock().unwrap().is_empty());
+        assert!(rt.bronze.quarantined.lock().unwrap().is_empty());
+    }
+
+    /// `get` fails after `put`: bronze must not receive rows from the request buffer.
+    struct LandingUnread {
+        objects: std::sync::Mutex<std::collections::BTreeMap<String, Vec<u8>>>,
+    }
+
+    impl crate::sinks::LandingSink for LandingUnread {
+        async fn put(&self, key: &str, data: &[u8]) -> Result<(), SinkError> {
+            self.objects
+                .lock()
+                .unwrap()
+                .insert(key.to_string(), data.to_vec());
+            Ok(())
+        }
+
+        async fn get(&self, key: &str) -> Result<Vec<u8>, SinkError> {
+            let _ = key;
+            Err(SinkError("landing get failed".into()))
+        }
+
+        fn uri(&self, key: &str) -> String {
+            format!("memory://{key}")
+        }
+    }
+
+    #[tokio::test]
+    async fn bronze_is_not_loaded_when_landing_cannot_be_read_back() {
+        let rt = SourceRuntime::new(
+            LandingUnread {
+                objects: std::sync::Mutex::new(std::collections::BTreeMap::new()),
+            },
+            MemoryBronze::default(),
+            CountingTika::default(),
+        )
+        .with_registry(
+            Registry::from_json(
+                r#"{"datasets": {"demo/records": {"table": "demo__records", "keys": ["id"]}}}"#,
+            )
+            .unwrap(),
+        );
+        let err = rt
+            .process(&payload(b"[{\"id\":1}]", Hints::default()))
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("landing get failed"));
+        assert!(rt.bronze.rows.lock().unwrap().is_empty());
+        assert_eq!(rt.landing.objects.lock().unwrap().len(), 1);
     }
 
     #[tokio::test]

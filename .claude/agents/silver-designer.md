@@ -32,7 +32,8 @@ Requirements, read them too; the contract serves them.
 3. Hand over to `arch-reviewer`. Do not edit the review's judgement.
 
 ## Hard limits
-- **Never sign a gate, never edit `state.yml`.** Gate H2 is signed by a human after the review.
+- **Never sign a gate by hand, never edit `state.yml`.** After review, `gate-sentinel` may
+  `make sentinel-sign GATE=h2` for authorized greens; otherwise a human runs `make sign`.
 - Do not hand-write staging or intermediate models (`make generate-dbt` generates them from the
   contract) and do not copy CEDIA contracts into this repo: drafts live in the dossier until phase 4 moves
   them to `configs/contracts/`.

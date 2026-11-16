@@ -1,10 +1,9 @@
 """Contract between Python extractors and the Rust ``SourceRuntime`` / ``RustWorker``.
 
 An extractor never hashes, stores or classifies payloads: it streams bytes and receives a
-receipt. Hashing, triage (Tika only for complex binaries, before loading) and Landing writes
-happen in Rust (``rust/source_runtime``). The real transport (F2) will implement
-``SourceRuntimeClient``; until then ``InMemoryRuntimeClient`` lets extractor code be tested
-without the binary.
+receipt. Rust (``rust/source_runtime``) writes every payload to RustFS first, calls Tika only
+for PDF/DOCX (the ``.txt`` goes back to RustFS) and loads typed bronze by reading that object
+back. ``InMemoryRuntimeClient`` lets extractor tests run without the binary.
 """
 
 from __future__ import annotations

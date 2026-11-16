@@ -37,16 +37,17 @@ flowchart TD
     end
 
     subgraph IngestionLayer ["Capa de Ingesta y Triaje"]
-        C1 -->|SHA-256 + Triaje| C2{"¿Es PDF/DOCX?"}
+        C1 -->|SHA-256| S1
+        S1 --> C2{"¿Es PDF/DOCX?"}
         C2 -->|Sí| C3["Apache Tika (Texto plano)"]
-        C2 -->|No| C4["Procesamiento Directo"]
+        C3 -->|".txt de vuelta"| S1
+        C2 -->|No: JSON, XML, HTML, CSV| S1
     end
 
     subgraph StorageLayer ["Capa de Almacenamiento"]
-        C3 --> S1["RustFS S3 (Landing Inmutable)"]
-        C4 --> S1
-        C4 -->|Si es JSON registrado| S2["PostgreSQL 16 (Esquema Bronze)"]
-        C4 -->|Payload corrupto| S3["PostgreSQL (Bronze Quarantine)"]
+        S1["RustFS S3 (Landing Inmutable)"]
+        S1 -->|Lee el objeto| S2["PostgreSQL 16 (Esquema Bronze)"]
+        S1 -->|Payload rechazado| S3["PostgreSQL (Bronze Quarantine)"]
     end
 
     subgraph OrchestrationLayer ["Capa de Orquestación"]
@@ -72,8 +73,8 @@ flowchart TD
 | :--- | :--- | :--- |
 | **Design Harness** | Python + Agentes Claude/Cursor | Explora sitios web, analiza términos legales, modela contratos de datos y compila artefactos. |
 | **Navegador Sigiloso** | Obscura (`obscura.sh` en Rust) | Ejecuta el motor V8 y expone CDP en puerto `9222`. Minimiza consumo de memoria (~30 MB) y elude bloqueos anti-bot. |
-| **Motor de Ingesta** | Rust 1.80 (`tokio`, `sha2`, `axum`) | Ubicado delante del almacenamiento; valida integridad por SHA-256, gestiona el triaje binario y alimenta Landing y Bronze. |
-| **Extractor Binario** | Apache Tika 4.1.0 | Servicio HTTP (puerto `9998`) invocado **únicamente** para extraer texto plano (`.txt`) de PDFs y DOCXs. |
+| **Motor de Ingesta** | Rust 1.80 (`tokio`, `sha2`, `axum`) | Escribe cada payload en RustFS, llama a Tika solo para PDF/DOCX y carga `bronze` leyendo el objeto desde RustFS. |
+| **Extractor Binario** | Apache Tika 4.1.0 | Servicio HTTP (puerto `9998`). Lee un PDF/DOCX que ya está en RustFS y devuelve el `.txt`, que vuelve a Landing. |
 | **Data Lake (Landing)** | RustFS S3 | Almacén inmutable de objetos bajo particionamiento Hive (`source=/dataset=/year=/...`). |
 | **Data Warehouse** | PostgreSQL 16 | Aloja las tablas tipadas `bronze.<fuente>__<dataset>` (`payload JSONB` + linaje) y la tabla `bronze_quarantine`. |
 | **Orquestador** | Apache Airflow 3.4.0 | Carga DAGs declarativos YAML nativos sin código Python (`dags/ingest__<id>.yml`). |
@@ -169,28 +170,32 @@ Para robustecer las distintas etapas técnicas del pipeline, se integraron las s
 
 ## 4. Ciclo y Transformación de los Datos
 
-El ciclo de vida del dato consta de 6 transformaciones continuas:
+El ciclo de vida del dato entra siempre por RustFS. Postgres bronze lee ese objeto; no recibe el cuerpo de la petición por un camino aparte:
 
 ```mermaid
-flowchart LR
-    P1["1. Raw Byte Stream"] --> P2["2. Triage & SHA-256"]
-    P2 --> P3["3. Bronze (PostgreSQL)"]
-    P3 --> P4["4. Staging (dbt)"]
-    P4 --> P5["5. Intermediate (dbt)"]
-    P5 --> P6["6. Producto OI (Canónico)"]
+flowchart TD
+    P1["1. Página / extractor"] --> P2["2. SourceRuntime: SHA-256"]
+    P2 --> P3["3. RustFS Landing<br/>estructurados y binarios"]
+    P3 --> P4["4. Tika solo PDF/DOCX<br/>el .txt vuelve a RustFS"]
+    P3 --> P5["5. Bronze PostgreSQL<br/>lee el objeto desde RustFS"]
+    P4 --> P5
+    P5 --> P6["6. Staging (dbt)"]
+    P6 --> P7["7. Intermediate (dbt)"]
+    P7 --> P8["8. Producto OI"]
 ```
 
 ### Paso 1: Extracción en Crudo (Raw Stream)
-El extractor descarga la respuesta HTTP original (HTML, feed RSS, JSON de API o archivo PDF). No deserializa ni procesa en memoria: realiza streaming de bytes directo al endpoint `/v1/ingest` de `SourceRuntime`.
+El extractor descarga la respuesta HTTP original (HTML, feed RSS, JSON de API o archivo PDF). No deserializa ni escribe en Postgres: hace streaming de bytes al endpoint `/v1/ingest` de `SourceRuntime`.
 
-### Paso 2: Triaje y Cómputo de Integridad (RustWorker)
-* Calcula el hash criptográfico `SHA-256` del payload.
-* Almacena el payload inalterado en el Data Lake:
-  `s3://landing/source=<id>/dataset=<dataset>/year=YYYY/month=MM/records.json`
-* Si el archivo es un binario complejo (PDF), Tika extrae su contenido textual y se guarda de forma contigua como `.../records.pdf.txt`.
+### Paso 2: RustFS antes que Postgres
+`RustWorker` calcula el `SHA-256` y escribe **todos** los bytes en el Data Lake, tanto el JSON/HTML/XML/CSV como el PDF/DOCX:
 
-### Paso 3: Capa Bronze (PostgreSQL)
-Si el dataset está declarado en [bronze/registry.json](file:///Users/edissonmorocho/practicaspp/ScrapAgents/bronze/registry.json), `RustWorker` desempaqueta los registros y los inserta atómicamente en la tabla `bronze.<fuente>__<dataset>`.
+`s3://landing/source=<id>/dataset=<dataset>/dt=YYYY-MM-DD/sha256=<hash>`
+
+Si el objeto es un binario complejo (PDF, DOCX), Tika lo lee **después** de ese `put` y el texto plano se guarda al lado, como el mismo key con sufijo `.txt`. Un fallo de Tika no borra el binario ya escrito en RustFS. JSON, XML, HTML y CSV no pasan por Tika.
+
+### Paso 3: Capa Bronze (PostgreSQL), leída desde RustFS
+`RustWorker` vuelve a leer el objeto desde RustFS. Solo entonces, si el dataset está declarado en [bronze/registry.json](file:///Users/edissonmorocho/practicaspp/ScrapAgents/bronze/registry.json) y el objeto es JSON, desempaqueta los registros y los inserta en `bronze.<fuente>__<dataset>`. La fila apunta al objeto con `_landing_uri`. Un PDF/DOCX no inventa filas de contrato: queda en RustFS (crudo + `.txt`). Si RustFS no devuelve el objeto, no hay insert en bronze.
 * **Esquema de la fila Bronze:**
   * `payload` (`JSONB`): Objeto original completo.
   * `_batch_id`: Identificador determinista derivado del SHA-256 (garantiza idempotencia: cargas repetidas no duplican registros).
@@ -228,7 +233,7 @@ El estado del proyecto demuestra un cumplimiento de entre el **85% y 90%** respe
 | Fase | Alcance de Requerimientos | Estado | Cumplimiento |
 | :--- | :--- | :---: | :---: |
 | **F1: Foundations** | Validador de contratos YAML, dossier de diseño, CLI, base de Python, skeleton Rust, infra Docker base. | **Completado** | 100% |
-| **F2: Runtime Core** | Streaming hacia RustWorker, SHA-256 en vuelo, triaje estricto (Tika solo para PDF/DOCX) y S3 Landing Hive. | **Completado** | 100% |
+| **F2: Runtime Core** | Todo payload a RustFS; Tika solo para PDF/DOCX con el `.txt` de vuelta en Landing; bronze lee ese objeto. | **Completado** | 100% |
 | **F3: Orchestration** | Airflow 3.4.0, importador nativo YAML (`AIP-85`), generación determinista de DAGs sin código Python. | **Completado** | 100% |
 | **F4: dbt / Producto OI** | Tablas tipadas Bronze, capas Staging, Intermediate y Producto OI con tests generados desde contratos. | **Completado** | 100% |
 | **F5: Design-Time Agents** | 4 agentes de diseño, compuertas H1 y H2, sondeo con Obscura y control anti-bot. | **Completado** | 100% |

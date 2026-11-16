@@ -32,8 +32,12 @@ async fn serve() -> Result<(), String> {
     };
     eprintln!("bronze registry: {} dataset(s)", registry.len());
     let state = Arc::new(AppState {
-        runtime: SourceRuntime::new(landing, bronze, HttpTika::new(&cfg.tika_url))
-            .with_registry(registry),
+        runtime: SourceRuntime::new(
+            landing,
+            bronze,
+            HttpTika::with_ocr_language(&cfg.tika_url, cfg.tika_ocr_language),
+        )
+        .with_registry(registry),
         max_body_bytes: cfg.max_body_bytes,
     });
     let listener = tokio::net::TcpListener::bind(&cfg.bind)

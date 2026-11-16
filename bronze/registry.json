@@ -12,6 +12,12 @@
       ],
       "table": "cyted__convocatorias"
     },
+    "daad/funding_programmes": {
+      "keys": [
+        "programme_id"
+      ],
+      "table": "daad__funding_programmes"
+    },
     "fixture/records": {
       "keys": [
         "id"
@@ -23,6 +29,12 @@
         "call_slug"
       ],
       "table": "idrc__funding_opportunities"
+    },
+    "most/funding_opportunities": {
+      "keys": [
+        "notice_id"
+      ],
+      "table": "most__funding_opportunities"
     },
     "world_bank/opportunities": {
       "keys": [

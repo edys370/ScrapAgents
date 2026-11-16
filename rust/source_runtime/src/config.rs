@@ -11,6 +11,7 @@ pub struct Config {
     pub s3_secret_key: String,
     pub database_url: String,
     pub tika_url: String,
+    pub tika_ocr_language: Option<String>,
     pub max_body_bytes: usize,
     /// Design-time `bronze/registry.json`; without it no dataset has a typed bronze table.
     pub bronze_registry: Option<String>,
@@ -30,6 +31,7 @@ impl Config {
             s3_secret_key: required("S3_SECRET_KEY")?,
             database_url: required("DATABASE_URL")?,
             tika_url: required("TIKA_URL")?,
+            tika_ocr_language: env::var("TIKA_OCR_LANGUAGE").ok().filter(|v| !v.is_empty()),
             max_body_bytes: env::var("RUNTIME_MAX_BODY_BYTES")
                 .ok()
                 .and_then(|v| v.parse().ok())

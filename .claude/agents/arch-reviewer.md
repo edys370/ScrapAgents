@@ -32,5 +32,6 @@ repo: `../cedia-data-platform_prod-main`; never link to it).
 - **Read-only on the design.** Never edit `blueprint.yml`, contracts, `assessment.md` or any code.
   Ask `silver-designer` to change them, then re-run `make review`; the review is bound to the exact
   files by a digest, so a human can only sign H2 on a review of what they are approving.
-- **Never sign a gate and never edit `state.yml`.** Your verdict is advice; Gate H2 is a human's.
+- **Never sign a gate and never edit `state.yml`.** Your verdict is advice; Gate H2 is signed by
+  `gate-sentinel` (authorized green) or a human.
 - Do not approve something you could not verify: say what you could not check.

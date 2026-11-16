@@ -29,14 +29,22 @@ class ObscuraConfig:
     cdp_url: str | None = None
     cdp_token: str | None = None
     user_agent: str | None = None
+    timeout_seconds: float = 30.0
+    locale: str | None = None
+    accept_language: str | None = None
 
     @classmethod
     def from_env(cls, env: dict[str, str] | None = None) -> ObscuraConfig:
         values = os.environ if env is None else env
+        timeout_val = values.get("OBSCURA_TIMEOUT_SECONDS")
+        timeout_sec = float(timeout_val) if timeout_val else 30.0
         config = cls(
             cdp_url=values.get("OBSCURA_CDP_URL") or None,
             cdp_token=values.get("OBSCURA_CDP_TOKEN") or None,
             user_agent=values.get("OBSCURA_USER_AGENT") or None,
+            timeout_seconds=timeout_sec,
+            locale=values.get("OBSCURA_LOCALE") or None,
+            accept_language=values.get("OBSCURA_ACCEPT_LANGUAGE") or None,
         )
         if values.get("OBSCURA_REQUIRED", "1") != "0" and config.cdp_url is None:
             raise RuntimeError(
@@ -67,6 +75,6 @@ class PageSnapshot:
 class StealthRouter(Protocol):
     """Fetches pages through a browser session on Obscura."""
 
-    def fetch(self, url: str, *, timeout_seconds: float = 30.0) -> PageSnapshot: ...
+    def fetch(self, url: str, *, timeout_seconds: float | None = None) -> PageSnapshot: ...
 
     def close(self) -> None: ...

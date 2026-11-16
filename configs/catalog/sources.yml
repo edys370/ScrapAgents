@@ -1,0 +1,12 @@
+# Optional candidate catalog for future Excel import into the risk matrix.
+# Dossiers under ingestions/<id>/ remain the source of truth once scaffolded.
+# Each entry is a discovery candidate; it does not authorize a lane by itself.
+sources: []
+# Example:
+# sources:
+#   - id: example_gov
+#     url: https://example.gov/tenders
+#     team: sistemas_internos
+#     dataset: opportunities
+#     type: web
+#     notes: from portfolio spreadsheet row 12

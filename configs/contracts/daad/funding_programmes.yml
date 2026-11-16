@@ -1,0 +1,110 @@
+# Draft contract: daad / funding_programmes
+# Becomes configs/contracts/daad/funding_programmes.yml in this repository (phase 4).
+# Rules: scrapagents.contracts (`make check-contracts`).
+#
+# How a record is born (deterministic, no LLM): the extractor fetches exactly four unpaginated
+# Nuxt 3 SSR listing pages through scrapagents.stealth (Obscura over CDP), parses each programme
+# block from <main> (title heading, summary paragraph, detail href) and/or the embedded
+# __NUXT_DATA__ payload with fixed selectors, and streams ONE JSON document {"records": [...]}
+# to RustWorker. Detail pages are never fetched (listing-only, H1). Every record is a flat
+# object whose keys are exactly the column names below.
+source_system: daad
+dataset: funding_programmes
+description: >
+  Institutional funding programmes and thematic HEI cooperation initiatives published by the
+  Deutscher Akademischer Austauschdienst e.V. (DAAD) for higher education institutions: titles,
+  summaries, thematic focus, Imperia publish dates (when present on the listing) and canonical
+  detail URLs parsed from four listing-only SSR pages on www.daad.de (German A–Z catalogue and
+  English HEI overview / cooperation pages). Detail pages are out of scope.
+owner: data_team_sistemas_internos
+grain: >
+  One DAAD institutional funding programme or thematic HEI initiative as it appears on one of
+  the four listing pages in a full listing-only read, identified by programme_id
+  ({language}:{programme_slug}). The same initiative on EN and DE listings is intentionally two
+  grains when both listings expose it (no cross-language merge without a detail crawl).
+personal_data: false
+primary_key:
+  - programme_id
+columns:
+  - name: programme_id
+    type: string
+    required: true
+    classification: public
+    description: >
+      Stable unique key for bronze and persistence: "{language}:{programme_slug}" (for example
+      de:hochschulpartnerschaften or en:campus-initiative-international-academic-experts).
+      Language prefix prevents collisions between EN thematic paths and DE A–Z catalogue slugs.
+
+  - name: programme_slug
+    type: string
+    required: true
+    classification: public
+    description: >
+      Last path segment of the programme's detail href as shown on the listing page (for example
+      the slug under .../weiterfuehrende-infos-zu-daad-foerderprogrammen/<slug>/ or the English
+      thematic page path). Not unique alone across languages; always combined with language in
+      programme_id.
+
+  - name: title
+    type: string
+    required: true
+    classification: public
+    description: Official programme or initiative title as published on the DAAD HEI listing pages.
+
+  - name: summary
+    type: string
+    required: false
+    classification: public
+    description: >
+      Short institutional summary or eligibility overview shown next to the programme on the
+      listing or catalogue page (listing text only; detail-page body is not fetched).
+
+  - name: thematic_focus
+    type: string
+    required: false
+    classification: public
+    description: >
+      Thematic grouping when present on the listing (for example Refugees at higher education
+      institutions, Sustainable development, Campus Initiative for International Talents, DWIH).
+
+  - name: language
+    type: string
+    required: true
+    classification: public
+    description: >
+      Language of the listing page that supplied the record (de or en). Forms the first segment
+      of programme_id.
+
+  - name: page_kind
+    type: string
+    required: true
+    classification: public
+    description: >
+      Origin of the record in this run: catalogue_programme (German A–Z HEI funding catalogue
+      listing) or thematic_initiative (English HEI overview / cooperation listing pages).
+
+  - name: publish_date
+    type: date
+    required: false
+    classification: public
+    description: >
+      Imperia CMS publishDate when exposed on the listing page metadata or __NUXT_DATA__
+      (YYYY-MM-DD). Null when the listing does not expose it; detail pages are not fetched to
+      obtain a missing date.
+
+  - name: source_url
+    type: string
+    required: true
+    classification: public
+    description: >
+      Absolute URL of the programme or initiative detail page as linked from the listing
+      (attribution to DAAD). Stored for lineage; the extractor does not GET this URL in the
+      listing-only scope.
+
+  - name: listing_url
+    type: string
+    required: true
+    classification: public
+    description: >
+      Absolute URL of the listing page from which the extractor read this programme in the run
+      (exactly one of the four HEI SSR listing pages in scope).

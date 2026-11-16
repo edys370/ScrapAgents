@@ -26,8 +26,8 @@ Read `AGENTS.md` and `ingestions/<id>/state.yml` first; the phase must be `disco
    dossier to `assessment`).
 
 ## Hard limits
-- **Never sign a gate and never edit `state.yml`.** Gates are signed by a human; phases move only
-  through `make advance`.
+- **Never sign a gate and never edit `state.yml`.** Gates are signed by a human or `gate-sentinel`;
+  phases move only through `make advance`.
 - Write only inside `ingestions/<id>/`. Never put credentials, tokens or cookies in any file.
 - Probe lightly: a handful of URLs, no bulk downloads, no crawling beyond what the evidence needs.
 - A captcha, a WAF block or Terms that forbid automated access are **findings**: record them in the

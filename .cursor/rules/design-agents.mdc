@@ -1,5 +1,5 @@
 ---
-description: Design-time agents (source-scout, source-assessor, silver-designer, arch-reviewer) and the commands they use
+description: Design-time agents (scout, assessor, designer, reviewer, gate-sentinel) and commands
 globs: ingestions/**
 alwaysApply: false
 ---
@@ -7,14 +7,17 @@ alwaysApply: false
 # Design-time agents
 
 Definitions live in `.claude/agents/` (read by Claude Code and Cursor); the workflow is the
-`new-source` skill in `.claude/skills/new-source/`. Agents prepare evidence and drafts; humans sign.
+`new-source` skill in `.claude/skills/new-source/`. Agents prepare evidence and drafts;
+`gate-sentinel` audits H1/H2; humans own Macro-H1 and PR.
 
 | Phase | Agent | Writes | Closes with |
 | :--- | :--- | :--- | :--- |
 | 1 Discovery | `source-scout` | `discovery.md` (probes via `make probe`) | `make advance` |
-| 2 Assessment | `source-assessor` | `assessment.md` | **H1** signed by a human |
+| 2 Assessment | `source-assessor` | `assessment.md` | **H1** (sentinel or human) |
+| 2/3 Audit | `gate-sentinel` | `sentinel.md`; may `sentinel-sign` H1/H2 | green lane + rules |
 | 3 Blueprint | `silver-designer` | `contract*.yml`, `blueprint.yml` | `make review` passes |
-| 3 Review | `arch-reviewer` | `review.md` notes only | **H2** signed by a human |
+| 3 Review | `arch-reviewer` | `review.md` notes only | **H2** (sentinel or human) |
 
-Commands: `make status|advance|review|probe ID=<id>`. `make sign` is **human only** and refuses
-agent shells and non-interactive terminals. Never edit `state.yml` by hand, never approve a gate.
+Commands: `make status|advance|review|probe|sentinel ID=<id>`,
+`make sentinel-sign ID=<id> GATE=h1|h2`, `make risk-matrix`,
+`make authorize-lane` / `make sign` (**human** TTY). Never edit `state.yml` by hand.

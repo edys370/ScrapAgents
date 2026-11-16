@@ -29,8 +29,9 @@ Decision of `go` or `no-go` with the reason. `make status ID=<id>` lists what is
 7. Run `make status ID=<id>`. With no blockers it will say it is waiting for gate H1.
 
 ## Hard limits
-- **Never sign a gate, never edit `state.yml`, never run `make sign`.** After the assessment is
-  complete, stop and tell the human: review `assessment.md` and, if they agree, run in their own
-  terminal `make sign ID=<id> GATE=h1 BY="<their name>"`. Then `make advance ID=<id>` can proceed.
+- **Never edit `state.yml` by hand.** After the assessment is complete, hand off to `gate-sentinel`
+  (`make sentinel`). Auto-sign only if Macro-H1 green + eligible; otherwise tell the human to review
+  `assessment.md` / `sentinel.md` and run `make sign ID=<id> GATE=h1 BY="<their name>"` (or
+  `make authorize-lane` first for a green batch).
 - A `no-go` is a valid outcome; write it clearly and stop. Do not soften a legal or anti-bot risk.
 - Write only inside `ingestions/<id>/`. Do not design schemas here.

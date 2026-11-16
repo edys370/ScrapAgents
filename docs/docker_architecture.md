@@ -24,8 +24,8 @@ Every service specifies an explicit `container_name` to eliminate Docker Compose
 | :--- | :--- | :--- | :---: | :--- |
 | **`postgres`** | `scrapagents-postgres` | `postgres:16` | `5433` | Data Warehouse: hosts typed `bronze` tables, quarantine schema, and analytical dbt targets. Initialized via `infra/warehouse/init.sql`. |
 | **`rustfs`** | `scrapagents-rustfs` | `rustfs/rustfs:1.0.4` | `9000` (S3), `9001` (UI) | Immutable S3 Landing Data Lake with Hive-style partitioning (`source=/dataset=/year=/...`). |
-| **`tika`** | `scrapagents-tika` | `apache/tika:4.1.0` | `9998` | Binary parser: extracts plain text from complex documents (PDF, DOCX) before storage. Reached only by `source-runtime`. |
-| **`source-runtime`** | `scrapagents-source-runtime` | Build: `rust/source_runtime` | `8088` | High-concurrency native RustWorker: performs streaming SHA-256 integrity hashing, Tika triage, S3 Landing ingest, and typed PostgreSQL inserts. |
+| **`tika`** | `scrapagents-tika` | `apache/tika:4.1.0` | `9998` | Binary parser: extracts plain text from a PDF/DOCX that is already in RustFS. Reached only by `source-runtime`; the `.txt` is written back to Landing. |
+| **`source-runtime`** | `scrapagents-source-runtime` | Build: `rust/source_runtime` | `8088` | RustWorker: SHA-256, writes every payload to RustFS, calls Tika only for PDF/DOCX, then loads typed PostgreSQL `bronze` from the landed object. |
 | **`obscura`** | `scrapagents-obscura` | `h4ckf0r0day/obscura:0.2.6` | `9222` | Stealth headless browser written in Rust. Exposes CDP over WebSocket for anti-bot scraping and DOM exploration. |
 | **`airflow-db`** | `scrapagents-airflow-db` | `postgres:16` | Internal only | Metadata database for Apache Airflow. |
 | **`airflow-init`** | `scrapagents-airflow-init` | Build: `infra/orchestration/Dockerfile` | Ephemeral | Database migration runner and declarative pool importer (`_pools.json`). Terminates after execution. |

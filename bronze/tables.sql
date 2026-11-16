@@ -27,6 +27,18 @@ CREATE TABLE IF NOT EXISTS bronze.cyted__convocatorias (
 );
 CREATE INDEX IF NOT EXISTS ix_cyted__convocatorias_batch ON bronze.cyted__convocatorias (_batch_id);
 
+-- daad/funding_programmes (configs/contracts/daad/funding_programmes.yml); key: programme_id
+CREATE TABLE IF NOT EXISTS bronze.daad__funding_programmes (
+    programme_id TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    _ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    _batch_id UUID NOT NULL,
+    _landing_uri TEXT NOT NULL,
+    _record_hash TEXT NOT NULL,
+    PRIMARY KEY (programme_id, _batch_id)
+);
+CREATE INDEX IF NOT EXISTS ix_daad__funding_programmes_batch ON bronze.daad__funding_programmes (_batch_id);
+
 -- fixture/records (ingestions/_fixture/contracts/records.yml); key: id
 CREATE TABLE IF NOT EXISTS bronze.fixture__records (
     id TEXT NOT NULL,
@@ -50,6 +62,18 @@ CREATE TABLE IF NOT EXISTS bronze.idrc__funding_opportunities (
     PRIMARY KEY (call_slug, _batch_id)
 );
 CREATE INDEX IF NOT EXISTS ix_idrc__funding_opportunities_batch ON bronze.idrc__funding_opportunities (_batch_id);
+
+-- most/funding_opportunities (configs/contracts/most/funding_opportunities.yml); key: notice_id
+CREATE TABLE IF NOT EXISTS bronze.most__funding_opportunities (
+    notice_id TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    _ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    _batch_id UUID NOT NULL,
+    _landing_uri TEXT NOT NULL,
+    _record_hash TEXT NOT NULL,
+    PRIMARY KEY (notice_id, _batch_id)
+);
+CREATE INDEX IF NOT EXISTS ix_most__funding_opportunities_batch ON bronze.most__funding_opportunities (_batch_id);
 
 -- world_bank/opportunities (configs/contracts/world_bank/opportunities.yml); key: id
 CREATE TABLE IF NOT EXISTS bronze.world_bank__opportunities (

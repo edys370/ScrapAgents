@@ -41,7 +41,7 @@ pub enum PayloadKind {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Route {
-    /// Lightweight / structured data goes straight to PostgreSQL `bronze`.
+    /// Structured payload. It is already in RustFS; JSON records are then loaded into `bronze`.
     Bronze,
     /// Complex binary: forward to Apache Tika to extract plain text.
     Tika,
@@ -139,15 +139,26 @@ fn classify_text(head: &[u8], hints: &Hints) -> PayloadKind {
     PayloadKind::Unknown
 }
 
-/// Valid UTF-8 without NUL bytes. A multi-byte char cut at the end of `head` is accepted.
+/// Valid text without NUL bytes.
+/// Accepts valid UTF-8 (including a multi-byte char cut at the end of `head`),
+/// or international text markup (e.g. GBK, GB2312, Big5, ISO-8859) with HTML/XML/JSON tags.
 fn is_text(head: &[u8]) -> bool {
     if head.contains(&0) {
         return false;
     }
-    match std::str::from_utf8(head) {
+    if match std::str::from_utf8(head) {
         Ok(_) => true,
         Err(e) => e.error_len().is_none(),
+    } {
+        return true;
     }
+    let head_lossy = String::from_utf8_lossy(head);
+    let lowered = head_lossy.to_ascii_lowercase();
+    lowered.contains("<html")
+        || lowered.starts_with("<!doctype")
+        || lowered.starts_with("<?xml")
+        || head_lossy.trim_start().starts_with('{')
+        || head_lossy.trim_start().starts_with('[')
 }
 
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
@@ -254,5 +265,15 @@ mod tests {
             kind(&data, none()),
             PayloadKind::Structured(Structured::Json)
         );
+    }
+
+    #[test]
+    fn non_utf8_cjk_html_is_recognized_as_structured() {
+        // GBK encoded Chinese text in HTML: <html><head><title>中文</title></head></html>
+        // In GBK, "中文" is [0xd6, 0xd0, 0xce, 0xc4] which is invalid UTF-8.
+        let gbk_html = b"<html><head><title>\xd6\xd0\xce\xc4</title></head></html>";
+        let k = kind(gbk_html, none());
+        assert_eq!(k, PayloadKind::Structured(Structured::Html));
+        assert_eq!(route(k), Route::Bronze);
     }
 }

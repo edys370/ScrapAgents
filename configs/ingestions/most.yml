@@ -1,0 +1,118 @@
+# Source `most`: the single declaration of this source in ScrapAgents (datasets, acquisition,
+# persistence intent, schedule, pool). Read by `make generate-dags`, `make generate-bronze`,
+# `make generate-dbt` and the extractor (`python -m scrapagents.extractors.most`).
+#
+# PRE-IMPLEMENTATION DECISION
+#   Type:            Shared Source Integration (MOST 科技计划通知公告 are institutionally reusable).
+#   Owning team:     sistemas_internos.
+#   Party:           NOT NEEDED for issuing_unit (source-local institutional label). Named
+#                    联系人 / phones / emails stay in body_text (personal) and Landing raw HTML;
+#                    strip or mask before Producto OI; do not LINK to party_id.
+#   Extraction:      FULL SCOPE every run — all kjjh_tztg listing pages + every in-scope detail.
+#   Persistence:     changes, key [notice_id], max_delete_percentage 10,
+#                    ignore_fields [listing_url, retrieved_at]; tombstones allowed.
+#   Refresh:         assessment.md — daily full read; bursty near-daily publication in open-call
+#                    seasons; ~406 notices / 41 pages as of 2026-11-12.
+#   Cadence:         "0 7 * * *" (07:00 America/Guayaquil).
+#   Legal:           H1 accepted 网站声明 residual risk for internal OI indexing with attribution
+#                    (not commercial verbatim reprint).
+#   Expected lineage: service.most.gov.cn (listing + detail HTML) -> Landing (JSON + raw HTML
+#                    side objects) -> bronze.most__funding_opportunities ->
+#                    stg_most__funding_opportunities -> int_most__funding_opportunities.
+ingestion_id: most
+source_system: most
+source_type: web
+owning_team: sistemas_internos
+owner: data_team_sistemas_internos
+display_name: MOST Funding Opportunities
+description: >
+  Daily full-scope ingest of public 科技计划通知公告 (science & technology plan funding notices)
+  from service.most.gov.cn/kjjh_tztg listing pages and /kjjh_tztg_all detail HTML, keyed by
+  notice_id, for internal Opportunity Intelligence with source attribution.
+
+acquisition:
+  # Full scope each run (assessment Refresh analysis). No incremental / watermark crawl.
+  # Listing page count N is read from the footer "共M条记录 1/N页" (41 pages / ~406 notices
+  # as of 2026-11-12); do not hard-code N in the extractor forever.
+  mode: full_scope
+  site: https://service.most.gov.cn
+  language: zh
+  listing_base: /kjjh_tztg/
+  listing_pages:
+    - /kjjh_tztg/index.html
+    - /kjjh_tztg/index_2.html
+    # … through index_N.html discovered from the listing footer pager
+  detail_path_pattern: /kjjh_tztg_all/<YYYYMMDD>/<notice_id>.html
+  # 2026-11-13: page 2 hit "navigation exceeded 30000ms deadline", then a detail
+  # page (kjjh_tztg_all/.../5414.html) died with "Failed to read body ... operation
+  # timed out" while Obscura was still reading the document. Navigation waits 90 s,
+  # retries use exponential backoff, and images/css/fonts are aborted so the HTML
+  # body is smaller. A few detail failures keep the listing fields and a null body.
+  pause_seconds_min: 3
+  pause_seconds_max: 7
+  expected_requests_per_run: 450
+  max_requests_per_run: 550
+  request_timeout_seconds: 90
+  request_max_attempts: 4
+  retry_backoff_seconds: 2
+  retry_backoff_cap_seconds: 32
+  block_static_resources: true
+  max_detail_failures: 20
+  raw_landing:
+    mode: side_objects
+    payloads: [listing_html, detail_html]
+    tika: never
+    retention: 30 days
+  out_of_scope:
+    - www.most.gov.cn/tztg
+    - fuwu.most.gov.cn/html/tztg
+    - kjjh_dfdt_all
+    - kjjh_gzdt_all
+    - kjjh_tztg_all_type_tabs
+    - authenticated_application_apis
+    - service1_service2_login
+    - escience_write_apis
+    - pdf_attachments
+    - data.most.gov.cn
+    - sousuonew_search
+
+datasets:
+  funding_opportunities:
+    contract: configs/contracts/most/funding_opportunities.yml
+    landing_format: json
+    bronze_table: most__funding_opportunities
+    # Full scope each run; Bronze keeps new keys, changed payloads and tombstones.
+    # ignore_fields change every run without a real edit of the notice.
+    # ~406 keys: one retired notice ≈ 0.25%; 10% ≈ 40 simultaneous deletions still trip the
+    # guard on a mass catalogue rewrite while allowing normal seasonal churn.
+    persistence:
+      mode: changes
+      key: [notice_id]
+      max_delete_percentage: 10
+      ignore_fields:
+        - listing_url
+        - retrieved_at
+
+airflow:
+  schedule: "0 7 * * *"
+  retries: 2
+  retry_delay_minutes: 5
+  max_active_runs: 1
+  pool: most_source
+  pool_slots: 1
+  pool_description: "MOST service.most.gov.cn rate limiting (3-7 s pause, one slot)"
+  # ~450 requests × 3–7 s pause, plus slow pages and a few 90 s retries.
+  land_timeout_hours: 4
+
+dbt:
+  selector: tag:source_most
+
+runtime:
+  extractor:
+    stealth: true
+    command: >-
+      python -m scrapagents.extractors.most --dataset {dataset} --ingest-date {ingest_date}
+  triage:
+    # Assessment payload table: listing HTML, detail HTML, emitted JSON — none go to Tika.
+    # PDF attachments are out of scope until a new H1/H2 expands scope.
+    binary_to_tika: []

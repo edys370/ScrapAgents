@@ -66,6 +66,24 @@ impl LandingSink for S3Landing {
         Ok(())
     }
 
+    async fn get(&self, key: &str) -> Result<Vec<u8>, SinkError> {
+        let output = self
+            .client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .send()
+            .await
+            .map_err(|e| SinkError(format!("get {key}: {e:?}")))?;
+        let bytes = output
+            .body
+            .collect()
+            .await
+            .map_err(|e| SinkError(format!("get {key} body: {e}")))?
+            .into_bytes();
+        Ok(bytes.to_vec())
+    }
+
     fn uri(&self, key: &str) -> String {
         format!("s3://{}/{key}", self.bucket)
     }

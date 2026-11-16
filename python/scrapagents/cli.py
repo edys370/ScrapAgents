@@ -19,9 +19,11 @@ from scrapagents.dbt import check_files as check_dbt_files
 from scrapagents.dbt import generate as generate_dbt_files
 from scrapagents.dbt import write_files as write_dbt_files
 from scrapagents.dbt.generator import DBT_DIR
-from scrapagents.design import WorkflowError, advance, sign, status
+from scrapagents.design import WorkflowError, advance, sentinel_sign, sign, status
+from scrapagents.design.lanes import authorize_lane, write_risk_matrix
 from scrapagents.design.probes import append_rows, probe
 from scrapagents.design.review import write_review
+from scrapagents.design.sentinel import write_report
 from scrapagents.dossier import (
     SOURCE_TYPES,
     TEAMS,
@@ -209,13 +211,20 @@ def _review(args: argparse.Namespace) -> int:
 AGENT_ENVIRONMENT = ("CLAUDECODE", "CURSOR_AGENT", "CURSOR_CONVERSATION_ID")
 
 
-def _sign(args: argparse.Namespace) -> int:
+def _require_human_tty(action: str) -> str | None:
+    """Return an error message if this is not an interactive human terminal."""
     agent = next((v for v in AGENT_ENVIRONMENT if os.environ.get(v)), None)
     if agent:
-        print(f"error: refusing to sign from an agent shell ({agent} is set)", file=sys.stderr)
-        return 1
+        return f"refusing to {action} from an agent shell ({agent} is set)"
     if not sys.stdin.isatty():
-        print("error: signing needs an interactive terminal operated by a person", file=sys.stderr)
+        return f"{action} needs an interactive terminal operated by a person"
+    return None
+
+
+def _sign(args: argparse.Namespace) -> int:
+    err = _require_human_tty("sign")
+    if err:
+        print(f"error: {err}", file=sys.stderr)
         return 1
     try:
         dossier = _dossier(args.id)
@@ -229,6 +238,68 @@ def _sign(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"gate {args.gate} of {args.id} signed by {args.by}")
+    return 0
+
+
+def _sentinel(args: argparse.Namespace) -> int:
+    try:
+        dossier = _dossier(args.id)
+        report = write_report(dossier)
+    except (DossierError, OSError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(
+        f"{report.ingestion_id}: lane={report.lane} "
+        f"eligible_for_auto_sign={str(report.eligible_for_auto_sign).lower()}"
+    )
+    print(f"wrote ingestions/{args.id}/sentinel.md")
+    return 0 if report.lane != "red" else 2
+
+
+def _sentinel_sign(args: argparse.Namespace) -> int:
+    try:
+        dossier = _dossier(args.id)
+        sentinel_sign(dossier, args.gate)
+    except (DossierError, WorkflowError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"gate {args.gate} of {args.id} signed by gate-sentinel")
+    return 0
+
+
+def _authorize_lane(args: argparse.Namespace) -> int:
+    err = _require_human_tty("authorize-lane")
+    if err:
+        print(f"error: {err}", file=sys.stderr)
+        return 1
+    ids = [part for raw in args.id for part in str(raw).split() if part]
+    print(
+        f"You are about to authorize lane {args.lane!r} for {len(ids)} source(s) "
+        f"as '{args.by}'."
+    )
+    print("This is Macro-H1 (Strategic Point 1); gate-sentinel may then auto-sign H1/H2.")
+    if input("Type authorize to confirm: ").strip() != "authorize":
+        print("not confirmed; nothing changed", file=sys.stderr)
+        return 1
+    try:
+        path = authorize_lane(
+            args.lane,
+            ids,
+            by=args.by,
+            note=args.note,
+            replace=args.replace,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"authorized lane {args.lane} -> {path}")
+    return 0
+
+
+def _risk_matrix(args: argparse.Namespace) -> int:
+    out = Path(args.out) if args.out else None
+    path = write_risk_matrix(out=out)
+    print(f"wrote {path}")
     return 0
 
 
@@ -291,7 +362,12 @@ def build_parser() -> argparse.ArgumentParser:
     probe_cmd.add_argument("--url", action="append", required=True)
     probe_cmd.add_argument("--no-robots", action="store_true", help="skip robots.txt")
     probe_cmd.add_argument("--dry-run", action="store_true", help="print, do not write")
-    probe_cmd.add_argument("--timeout", type=float, default=30.0)
+    probe_cmd.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="timeout in seconds (default: OBSCURA_TIMEOUT_SECONDS or 30.0)",
+    )
     probe_cmd.set_defaults(func=_probe)
 
     state = sub.add_parser("status", help="phase, missing evidence and pending human gate")
@@ -311,6 +387,46 @@ def build_parser() -> argparse.ArgumentParser:
     sig.add_argument("--gate", required=True, choices=("h1", "h2", "pr"))
     sig.add_argument("--by", required=True, help="your own name")
     sig.set_defaults(func=_sign)
+
+    sent = sub.add_parser(
+        "sentinel", help="run Gate Sentinel rules; write ingestions/<id>/sentinel.md"
+    )
+    sent.add_argument("--id", required=True)
+    sent.set_defaults(func=_sentinel)
+
+    ssign = sub.add_parser(
+        "sentinel-sign",
+        help="auto-sign H1/H2 as gate-sentinel when green lane + rules allow",
+    )
+    ssign.add_argument("--id", required=True)
+    ssign.add_argument("--gate", required=True, choices=("h1", "h2"))
+    ssign.set_defaults(func=_sentinel_sign)
+
+    auth = sub.add_parser(
+        "authorize-lane",
+        help="HUMAN ONLY: Macro-H1 authorize a risk lane (Strategic Point 1)",
+    )
+    auth.add_argument("--lane", required=True, choices=("green", "yellow", "red"))
+    auth.add_argument(
+        "--id",
+        action="append",
+        required=True,
+        help="ingestion id (repeatable or space-separated)",
+    )
+    auth.add_argument("--by", required=True, help="your own name")
+    auth.add_argument("--note", default=None)
+    auth.add_argument(
+        "--replace",
+        action="store_true",
+        help="replace the lane id list instead of merging",
+    )
+    auth.set_defaults(func=_authorize_lane)
+
+    matrix = sub.add_parser(
+        "risk-matrix", help="evaluate every dossier into build/risk_matrix.md"
+    )
+    matrix.add_argument("--out", default=None, help="default: build/risk_matrix.md")
+    matrix.set_defaults(func=_risk_matrix)
 
     ready = sub.add_parser("check-runtime", help="exit 0 when source_runtime answers /healthz")
     ready.add_argument("--url", help="default: $RUNTIME_URL or http://127.0.0.1:8088")

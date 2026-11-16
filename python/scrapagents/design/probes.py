@@ -39,7 +39,7 @@ def probe(
     *,
     today: str,
     robots: bool = True,
-    timeout_seconds: float = 30.0,
+    timeout_seconds: float | None = None,
 ) -> tuple[list[ProbeRow], dict[str, str]]:
     """One row per URL (plus one per host for ``robots.txt``) and the robots.txt text per host."""
 

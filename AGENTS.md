@@ -1,6 +1,6 @@
 # PROJECT CONTEXT & ARCHITECTURE SPECIFICATION (`AGENTS.md`)
 
-> **TARGET AUDIENCE:** Autonomous AI Agents (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`).
+> **TARGET AUDIENCE:** Autonomous AI Agents (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`, `gate-sentinel`).
 > **CORE PRINCIPLE:** AI operates strictly at **Design-Time** to generate deterministic artifacts. **Run-Time** execution is 100% deterministic and free of LLM inference.
 
 ---
@@ -13,8 +13,8 @@ This platform ingests, normalizes, and governs unstructured and structured data 
 1. **Zero AI at Run-Time:** Never embed LLM calls, dynamic prompts, or non-deterministic agent logic inside production extractors, Airflow DAGs, or dbt models.
 2. **Single Source of Truth for Contracts:** All schemas, validation rules, and canonical mappings live in this repository (`configs/contracts/`, `configs/ingestions/`) and generate bronze, dbt and DAGs via YAML & Jinja templates. Never duplicate a contract elsewhere. CEDIA is a reference only, not a dependency.
 3. **Browser access through Obscura (`obscura.sh` + `playwright`):** `obscura.sh` is a headless browser written in Rust and built for AI agents; it is the *destination* of every browser session. All browser-based discovery probes (`source-scout`) and production web extractors requiring DOM navigation use `playwright`, but instead of opening a local Chromium on the extractor host, Playwright connects to Obscura over the Chrome DevTools Protocol (`connect_over_cdp`, endpoint `OBSCURA_CDP_URL`, bearer token `OBSCURA_CDP_TOKEN`). Using Obscura does not replace the legal review: a site's Terms of Service, `robots.txt` and any block (WAF, captcha) are recorded as findings for Gate H1.
-4. **Stream-to-Rust Integrity & Binary Triage (`SourceRuntime` / `RustWorker`):** Python extractors stream raw byte payloads directly to the native Rust binary (`RustWorker` / `SourceRuntime`). The Rust worker sits **in front of RustFS (S3 `Landing`)**: it computes SHA-256 hashes and triages each payload **before anything is loaded**. **ONLY complex binary documents (e.g., PDF, DOCX) pass through Apache Tika first** (the raw file and the extracted text are then loaded into `Landing`); every other payload (JSON, XML, HTML, CSV) is loaded normally and never touches Tika.
-5. **Strict Human-in-the-Loop (HITL) Gates:** Agents must halt execution and await explicit human sign-off at **Gate H1** (Viability Assessment), **Gate H2** (Blueprint/Contract Approval), and final **PR Merge**.
+4. **Stream-to-Rust Integrity & Binary Triage (`SourceRuntime` / `RustWorker`):** Python extractors stream raw byte payloads to `RustWorker` / `SourceRuntime`. Every payload is written to **RustFS (S3 `Landing`)** first — structured documents (JSON, XML, HTML, CSV) and complex binaries (PDF, DOCX). Only PDF/DOCX then pass through Apache Tika; the extracted `.txt` is written back to RustFS beside the raw object. Typed PostgreSQL `bronze` rows are loaded by **reading that object back from RustFS**. JSON, XML, HTML and CSV never touch Tika.
+5. **Strict Human-in-the-Loop (HITL) Gates:** Humans own **Macro-H1** (batch risk-lane authorization via `make authorize-lane`), **Producto OI value review**, and **PR Merge** (`make sign GATE=pr`). Per-source **H1/H2** may be auto-signed by `gate-sentinel` only when the source is in the authorized green lane and deterministic rules pass 100% (`make sentinel` / `make sentinel-sign`). Yellow/red and exceptions stay human. Agents never sign PR and never edit `state.yml` by hand.
 
 ---
 
@@ -32,8 +32,8 @@ This platform ingests, normalizes, and governs unstructured and structured data 
 | :--- | :--- | :--- |
 | **Workflow Orchestrator** | Apache Airflow `3.4.0` | Latest stable release (with native YAML DAG importer / AIP-85 support). Parses declarative `.yml` configurations generated at design-time to instantiate and schedule deterministic DAGs. |
 | **Extractor & Browser Layer** | Python + `playwright` + `obscura.sh` | Executes production extraction from institutional web portals/APIs: Playwright drives the Obscura browser over CDP (`OBSCURA_CDP_URL`) and streams raw bytes directly to the Rust worker. |
-| **SourceRuntime (`RustWorker`)** | Rust `1.80` (`tokio`, `sha2`) | Native high-concurrency binary packaged with Python. Sits in front of RustFS. Computes SHA-256 hashes, validates integrity and **acts as a smart document filter**: **only complex binaries** go to Apache Tika before loading; everything else is loaded to S3 `Landing` directly (JSON records of a registered dataset also to its typed PostgreSQL `bronze` table). |
-| **Binary Parser** | Apache Tika Server `4.1.0` | Invoked exclusively by `RustWorker`, before loading into `Landing`, when a payload is identified as a complex binary document (PDF, DOCX, etc.), to extract plain text (`.txt`). |
+| **SourceRuntime (`RustWorker`)** | Rust `1.80` (`tokio`, `sha2`) | Writes every payload to RustFS first, then loads typed PostgreSQL `bronze` from that object. Only PDF/DOCX are sent to Apache Tika; the plain text is stored back in RustFS. |
+| **Binary Parser** | Apache Tika Server `4.1.0` | Invoked by `RustWorker` only after the raw PDF/DOCX is already in RustFS. The extracted `.txt` is written to Landing next to the binary. |
 
 ### 2.3 Data Warehouse, Lakehouse & Governance
 | Component | Technology / Version | Storage / Modeling Responsibility |
@@ -47,7 +47,7 @@ This platform ingests, normalizes, and governs unstructured and structured data 
 
 ## 3. DESIGN-TIME WORKFLOW (AGENTIC SDLC)
 
-Every new institutional ingestion pipeline is built autonomously through a 5-phase state machine with two mandatory human checkpoints:
+Every new institutional ingestion pipeline is built autonomously through a 5-phase state machine with strategic human checkpoints (Macro-H1, Producto OI value, PR) and optional sentinel auto-sign for green H1/H2:
 
 ```text
 [1. Discovery] ──> [2. Assessment] ──(H1)──> [3. Blueprint] ──(H2)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
@@ -63,7 +63,7 @@ Every new institutional ingestion pipeline is built autonomously through a 5-pha
 | **H2** | Blueprint -> Implement | `ingestions/<id>/blueprint.yml` + draft contract (schema, quality rules, `configs/ingestions/<id>.yml` draft) | Human owner + arch-reviewer |
 | **PR** | Verify -> merge | `make validate` green (lint, tests, gates, contracts, generated files current), reviewer approval | Human reviewer |
 
-Agents and their commands: `source-scout` (`make probe`), `source-assessor`, `silver-designer`, `arch-reviewer` (`make review`), coordinated by the `new-source` skill; `make status` shows where a source stands and `make advance` moves its phase. Only a human runs `make sign` (see `docs/implementation-plan.md`, F5).
+Agents and their commands: `source-scout` (`make probe`), `source-assessor`, `silver-designer`, `arch-reviewer` (`make review`), `gate-sentinel` (`make sentinel` / `make sentinel-sign`), coordinated by the `new-source` skill; `make status` shows where a source stands and `make advance` moves its phase. Humans run `make authorize-lane` (Macro-H1) and `make sign` (PR / yellow path); see `docs/implementation-plan.md` F5 and `docs/producto-oi-value-review.md`.
 
 State lives in `ingestions/<id>/state.yml` (`phase`, `h1`, `h2`, `pr`). An agent MUST NOT move
 `phase` past a gate whose `status` is not `approved` and whose `approved_by` is empty.

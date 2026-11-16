@@ -9,6 +9,11 @@
     "include_deferred": false,
     "slots": 1
   },
+  "daad_source": {
+    "description": "DAAD www.daad.de rate limiting (Crawl-delay 2, 3 s spacing, one slot)",
+    "include_deferred": false,
+    "slots": 1
+  },
   "fixture_local": {
     "description": "Local fixture extraction",
     "include_deferred": false,
@@ -16,6 +21,11 @@
   },
   "idrc_web": {
     "description": "IDRC website access (crawl-delay 5 s, one request at a time)",
+    "include_deferred": false,
+    "slots": 1
+  },
+  "most_source": {
+    "description": "MOST service.most.gov.cn rate limiting (3-7 s pause, one slot)",
     "include_deferred": false,
     "slots": 1
   },

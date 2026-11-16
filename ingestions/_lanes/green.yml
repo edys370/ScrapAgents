@@ -1,0 +1,7 @@
+# Macro-H1 authorization for the green lane. Written only by
+# `make authorize-lane LANE=green IDS=... BY=<human>` (interactive TTY).
+lane: green
+authorized_by: null
+authorized_at: null
+ids: []
+note: null

@@ -22,7 +22,9 @@ COMPOSE ?= docker compose
 
 .PHONY: help setup new-ingestion check-gates check-contracts lint test \
 	rust-build rust-test smoke smoke-f3 generate-dags check-dags airflow-parse airflow-pools \
-	generate-dbt check-dbt status advance review probe sign generate-bronze check-bronze bronze-apply dbt dbt-parse dbt-check-catalog infra-env infra-network infra-up infra-down infra-config validate
+	generate-dbt check-dbt status advance review probe sign sentinel sentinel-sign \
+	authorize-lane risk-matrix generate-bronze check-bronze bronze-apply dbt dbt-parse \
+	dbt-check-catalog infra-env infra-network infra-up infra-down infra-config validate
 
 help:
 	@echo "make setup                         venv + dev and extractor dependencies"
@@ -31,6 +33,10 @@ help:
 	@echo "make check-gates                   human gates H1/H2/PR respected in every dossier"
 	@echo "make status|advance|review|probe ID=<id>   design-time workflow of one source (agents)"
 	@echo "make sign ID=<id> GATE=h1|h2|pr BY=<you>     HUMAN ONLY: sign a gate in your own terminal"
+	@echo "make sentinel ID=<id>              Gate Sentinel rules -> ingestions/<id>/sentinel.md"
+	@echo "make sentinel-sign ID=<id> GATE=h1|h2   auto-sign when green lane + rules allow"
+	@echo "make authorize-lane LANE=green IDS=... BY=<you>   HUMAN Macro-H1 (Strategic Point 1)"
+	@echo "make risk-matrix                   semáforo over all dossiers -> build/risk_matrix.md"
 	@echo "make check-contracts               configs/contracts and dossier drafts are valid"
 	@echo "make lint | test                   ruff | pytest"
 	@echo "make rust-build | rust-test        native SourceRuntime"
@@ -103,6 +109,20 @@ probe:
 # HUMAN ONLY, in your own terminal: make sign ID=<id> GATE=h1 BY="Your Name"
 sign:
 	$(VPY) -m scrapagents.cli sign --id $(ID) --gate $(GATE) --by "$(BY)"
+
+sentinel:
+	$(VPY) -m scrapagents.cli sentinel --id $(ID)
+
+# Agents may run this for H1/H2 when Macro-H1 green lane + rules allow. Never for PR.
+sentinel-sign:
+	$(VPY) -m scrapagents.cli sentinel-sign --id $(ID) --gate $(GATE)
+
+# HUMAN ONLY Macro-H1: make authorize-lane LANE=green IDS="a b c" BY="Your Name"
+authorize-lane:
+	$(VPY) -m scrapagents.cli authorize-lane --lane $(LANE) $(foreach i,$(IDS),--id $(i)) --by "$(BY)" $(if $(NOTE),--note "$(NOTE)",) $(if $(REPLACE),--replace,)
+
+risk-matrix:
+	$(VPY) -m scrapagents.cli risk-matrix
 
 generate-dags:
 	$(VPY) -m scrapagents.cli generate-dags $(foreach c,$(DAG_CONFIGS),--config $(c)) $(foreach i,$(IDS),--id $(i))

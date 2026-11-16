@@ -1,0 +1,87 @@
+# Blueprint for `daad`. Phase 3, closed by **Gate H2**.
+# Draft of what will become `configs/ingestions/daad.yml` in this repository (phase 4).
+# Checked by `make review ID=daad`.
+#
+# PRE-IMPLEMENTATION DECISION
+#   Type:            Shared Source Integration (DAAD HEI programmes are institutionally reusable).
+#   Owning team:     sistemas_internos.
+#   Party:           NOT NEEDED. Titles and thematic labels are source-local; no person or
+#                    organisation identity is extracted.
+#   Extraction:      LISTING-ONLY. Exactly 4 unpaginated SSR listing pages per run; no GET of
+#                    programme detail URLs (detail crawl out of scope until a new H1/H2).
+#   Identity:        programme_id = "{language}:{programme_slug}" (EN vs DE collision-proof).
+#                    Same initiative on EN and DE listings = two intentional grains.
+#   Persistence:     changes, key [programme_id], max_delete_percentage 20
+#                    (peer-consistent for listing-only ~25–60 programmes; one-slot full scope).
+#   Refresh:         assessment.md — weekly full read; programmes update monthly/quarterly.
+#   Cadence:         "0 6 * * 2" (Tuesday 06:00 America/Guayaquil).
+#   Expected lineage: www.daad.de (Nuxt SSR HTML + __NUXT_DATA__) -> Landing (JSON) ->
+#                    bronze.daad__funding_programmes -> stg_daad__funding_programmes ->
+#                    int_daad__funding_programmes.
+ingestion_id: daad
+source_system: daad
+source_type: web
+owning_team: sistemas_internos
+owner: data_team_sistemas_internos
+display_name: DAAD HEI Funding Programmes
+description: >
+  Weekly listing-only ingest (exactly four SSR pages, no detail crawl) of institutional funding
+  programmes and thematic HEI cooperation initiatives published by the Deutscher Akademischer
+  Austauschdienst e.V. (DAAD) on www.daad.de. Records keyed by language-prefixed programme_id.
+
+acquisition:
+  # Locked listing-only (H1 go / arch-reviewer): four SSR listing pages, ~4 requests/run.
+  # Programme detail hrefs are captured as source_url for attribution only — never fetched.
+  mode: listing_only
+  site: https://www.daad.de
+  language: de
+  listing_paths:
+    - /en/information-services-for-higher-education-institutions/
+    - /en/the-daad/what-we-do/sustainable-development/
+    - /en/information-services-for-higher-education-institutions/expertise-on-subjects-countries-regions/campus-initiative-international-academic-experts/
+    - /de/infos-services-fuer-hochschulen/weiterfuehrende-infos-zu-daad-foerderprogrammen/
+  min_seconds_between_requests: 3
+  max_requests_per_run: 4
+  expected_requests_per_run: 4
+  request_timeout_seconds: 30
+  out_of_scope:
+    - programme_detail_pages
+    - detail_path_crawl
+    - pdf_attachments
+    - search_endpoints
+    - imperia_admin
+    - individual_project_contact_cards
+    - imprint_executive_names
+
+datasets:
+  funding_programmes:
+    contract: contract.yml
+    landing_format: json
+    bronze_table: daad__funding_programmes
+    persistence:
+      mode: changes
+      key: [programme_id]
+      # 20%: peer-consistent with cyted-style funding catalogues; listing-only ~25–60 programmes
+      # means one retired programme is ~1.7–4%. Guard still trips on a mass catalogue rewrite.
+      max_delete_percentage: 20
+
+airflow:
+  schedule: "0 6 * * 2"
+  retries: 2
+  retry_delay_minutes: 5
+  max_active_runs: 1
+  pool: daad_source
+  pool_slots: 1
+  pool_description: "DAAD www.daad.de rate limiting (Crawl-delay 2, 3 s spacing, one slot)"
+  land_timeout_hours: 1
+
+dbt:
+  selector: tag:source_daad
+
+runtime:
+  extractor:
+    stealth: true
+    command: >-
+      python -m scrapagents.extractors.daad --dataset {dataset} --ingest-date {ingest_date}
+  triage:
+    binary_to_tika: []

@@ -1,9 +1,11 @@
 """Moving a dossier through the phases, and recording human signatures.
 
 * ``advance`` is safe for an agent to run: it moves ``phase`` forward only when the evidence of the
-  current phase is complete and the gate that closes it was signed by a human.
-* ``sign`` records a human decision in ``state.yml``. It is the only code that writes
-  ``approved_by``; the CLI refuses it unless it runs in an interactive terminal of a person.
+  current phase is complete and the gate that closes it was signed (human or gate-sentinel).
+* ``sign`` records a **human** decision in ``state.yml``. The CLI refuses it unless it runs in an
+  interactive terminal of a person (and refuses agent shells). Used for PR and yellow/manual H1/H2.
+* ``sentinel_sign`` records Gate H1/H2 approval as ``gate-sentinel`` only when the source is in the
+  human-authorized green lane and deterministic sentinel rules are 100% green. Never for PR.
 """
 
 from __future__ import annotations
@@ -18,10 +20,13 @@ import yaml
 
 from scrapagents.contracts import validate_contract_file
 from scrapagents.design import evidence, review
+from scrapagents.design.lanes import is_authorized, load_lane
+from scrapagents.design.sentinel import SENTINEL_SIGNER, evaluate, write_report
 from scrapagents.dossier import GATES, PHASES, check_state, load_dossier
 from scrapagents.paths import REPO_ROOT, config_root
 
-# Names that identify an agent, not a person: a gate is signed by a human.
+# Names that identify an agent, not a person: human ``sign`` rejects these.
+# ``gate-sentinel`` is allowed only via ``sentinel_sign`` (exact match).
 _AGENT_NAMES = re.compile(r"(claude|cursor|gpt|copilot|assistant|agent|bot\b|llm|codex)", re.I)
 # Phase that must be current for each gate to be signed.
 SIGN_PHASE = {"h1": "assessment", "h2": "blueprint", "pr": "verify"}
@@ -117,8 +122,9 @@ def status(dossier_dir: Path) -> Status:
     result.blockers.extend(evidence_blockers(dossier_dir, phase))
     if gate and not _signed(state, gate) and not result.blockers:
         result.waiting_for_human = (
-            f"gate {gate.upper()}: a human must run `make sign ID={dossier_dir.name} "
-            f'GATE={gate} BY="<name>"`'
+            f"gate {gate.upper()}: human `make sign ID={dossier_dir.name} "
+            f'GATE={gate} BY="<name>"` or, if Macro-H1 green + rules allow, '
+            f"`make sentinel-sign ID={dossier_dir.name} GATE={gate}`"
         )
     return result
 
@@ -179,6 +185,51 @@ def sign(dossier_dir: Path, gate: str, by: str, *, today: str | None = None) -> 
         raise WorkflowError(f"gate must be one of: {', '.join(SIGN_PHASE)}")
     if not by.strip() or _AGENT_NAMES.search(by):
         raise WorkflowError("a gate is signed by a person: give your own name")
+    _apply_sign(dossier_dir, gate, by.strip(), today=today)
+
+
+def sentinel_sign(
+    dossier_dir: Path,
+    gate: str,
+    *,
+    today: str | None = None,
+    lanes_root: Path | None = None,
+) -> None:
+    """Auto-sign H1/H2 as gate-sentinel when Macro-H1 green lane + rules allow it."""
+
+    if gate == "pr":
+        raise WorkflowError("gate-sentinel never signs PR; a human must run make sign GATE=pr")
+    if gate not in {"h1", "h2"}:
+        raise WorkflowError("sentinel-sign only supports gates h1 and h2")
+
+    ingestion_id = dossier_dir.name
+    if not is_authorized(ingestion_id, "green", root=lanes_root):
+        raise WorkflowError(
+            f"'{ingestion_id}' is not in the authorized green lane "
+            "(run make authorize-lane LANE=green IDS=... BY=<human>)"
+        )
+
+    report = evaluate(dossier_dir)
+    if report.lane != "green" or not report.eligible_for_auto_sign:
+        write_report(dossier_dir, report)
+        raise WorkflowError(
+            f"sentinel lane is {report.lane}, eligible_for_auto_sign="
+            f"{report.eligible_for_auto_sign}; cannot auto-sign"
+        )
+    if gate == "h1" and not all(r.lane == "green" for r in report.rules if r.gate == "h1"):
+        raise WorkflowError("H1 sentinel rules are not all green")
+    if gate == "h2" and not all(r.lane == "green" for r in report.rules):
+        raise WorkflowError("H2 sentinel rules are not all green")
+
+    lane = load_lane("green", root=lanes_root)
+    via = f"{lane.get('authorized_by')} @ {lane.get('authorized_at')}"
+    write_report(dossier_dir, report, via=via)
+    _apply_sign(dossier_dir, gate, SENTINEL_SIGNER, today=today)
+
+
+def _apply_sign(
+    dossier_dir: Path, gate: str, by: str, *, today: str | None = None
+) -> None:
     state = load_dossier(dossier_dir).state
     if state.get("phase") != SIGN_PHASE[gate]:
         raise WorkflowError(
@@ -191,4 +242,4 @@ def sign(dossier_dir: Path, gate: str, by: str, *, today: str | None = None) -> 
         if blockers:
             raise WorkflowError("the evidence is incomplete: " + "; ".join(blockers))
     stamp = today or datetime.date.today().isoformat()
-    _write_state(dossier_dir, lambda text: _set_gate(text, gate, by.strip(), stamp))
+    _write_state(dossier_dir, lambda text: _set_gate(text, gate, by, stamp))

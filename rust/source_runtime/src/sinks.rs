@@ -18,8 +18,12 @@ impl fmt::Display for SinkError {
 impl std::error::Error for SinkError {}
 
 /// Immutable object storage (`Landing`, RustFS S3).
+///
+/// `put` is the only way bytes enter the lake. Bronze reads them back with `get`: Postgres is
+/// downstream of RustFS, never a side door for the request body.
 pub trait LandingSink {
     fn put(&self, key: &str, data: &[u8]) -> impl Future<Output = Result<(), SinkError>> + Send;
+    fn get(&self, key: &str) -> impl Future<Output = Result<Vec<u8>, SinkError>> + Send;
     /// Where an object can be found, recorded in bronze as `_landing_uri`.
     fn uri(&self, key: &str) -> String;
 }
@@ -71,6 +75,15 @@ pub mod memory {
                 .unwrap()
                 .insert(key.to_string(), data.to_vec());
             Ok(())
+        }
+
+        async fn get(&self, key: &str) -> Result<Vec<u8>, SinkError> {
+            self.0
+                .lock()
+                .unwrap()
+                .get(key)
+                .cloned()
+                .ok_or_else(|| SinkError(format!("landing object {key} is missing")))
         }
 
         fn uri(&self, key: &str) -> String {

@@ -63,66 +63,39 @@ Once the inputs are gathered:
 
 ---
 
-## Step 2: Assessment and Gate H1 (Human Decision Point)
+## Step 2: Assessment and Gate H1 (sentinel or human)
 
 1. Act as **`source-assessor`**:
    - Turn discovery evidence into a structured risk evaluation in `ingestions/<id>/assessment.md`.
-   - Evaluate:
-     - Legal/ToS terms and licensing.
-     - Anti-bot risks (stealth profile and Airflow Pool slot allocation).
-     - Personal data risks under LOPDP (Ecuador).
-     - Triage classification (only PDF/DOCX to Apache Tika).
-     - Refresh cadence and persistence strategy.
+   - Evaluate legal/ToS, anti-bot, LOPDP, duplicates, refresh, payload triage, go/no-go.
 
-2. **Present Gate H1 to the Human:**
-   - Link the file directly: `ingestions/<id>/assessment.md`.
-   - Display a concise executive briefing summarizing:
-     - Feasibility status.
-     - Anti-bot / WAF status.
-     - Personal data presence.
-     - Recommended decision (`go` or `no-go`).
-   - Present the human with 3 clear choices:
-     - **Option 1: [Approve (Go)]**
-       Instruct the human to run the signing command in their terminal (or provide the one-click instruction):
-       ```bash
-       make sign ID=<id> GATE=h1 BY="<Human Name>"
-       ```
-       Once signed, execute `make advance ID=<id>` to proceed to Phase 3.
-     - **Option 2: [Reject (No-go)]**
-       Update `assessment.md` with `- Decision: no-go` and rationale. Terminate workflow cleanly.
-     - **Option 3: [Reload / Adjust]**
-       Prompt for adjusted URLs or crawler delay settings, re-run `make probe`, and re-generate `assessment.md`.
+2. Act as **`gate-sentinel`**:
+   ```bash
+   make sentinel ID=<id>
+   ```
+   - **Green + eligible + Macro-H1 authorized** (`ingestions/_lanes/green.yml`):
+     ```bash
+     make sentinel-sign ID=<id> GATE=h1
+     make advance ID=<id>
+     ```
+   - **Yellow / red / not authorized:** present `assessment.md` + `sentinel.md` to the human.
+     - Approve manually: `make sign ID=<id> GATE=h1 BY="<Human Name>"`
+     - Reject (no-go) or reload/re-probe as today.
+   - If the human has not yet authorized the green batch: ask them to run
+     `make risk-matrix` and `make authorize-lane LANE=green IDS=... BY=<name>` (Strategic Point 1).
 
 ---
 
 ## Step 3: Blueprint, Architecture Review & Gate H2
 
-1. Act as **`silver-designer`**:
-   - Create `ingestions/<id>/contract.yml` defining the typed schema (`primary_key`, column types, nullability, descriptions).
-   - Create `ingestions/<id>/blueprint.yml` configuring the acquisition parameters, Airflow Pool, and dbt tags.
-
-2. Act as **`arch-reviewer`**:
-   - Run the mechanical architectural audit:
-     ```bash
-     make review ID=<id>
-     ```
-   - Verify compliance with the 5 invariants and dry-run code generation.
-   - Record findings and verdict (`approve` or `changes requested`) in `ingestions/<id>/review.md`.
-
-3. **Present Gate H2 to the Human:**
-   - Link the files directly: `ingestions/<id>/blueprint.yml` and `ingestions/<id>/review.md`.
-   - Present an executive summary of the schema grain, primary key, and reviewer verdict.
-   - Present 3 clear choices:
-     - **Option 1: [Approve H2]**
-       Human confirms and executes in terminal:
-       ```bash
-       make sign ID=<id> GATE=h2 BY="<Human Name>"
-       ```
-       Once signed, execute `make advance ID=<id>` to move to `implement`.
-     - **Option 2: [Request Changes]**
-       User provides feedback on columns or keys; `silver-designer` updates files and re-runs `make review`.
-     - **Option 3: [Cancel / Abort]**
-       Safely remove the dossier or keep it on hold.
+1. Act as **`silver-designer`**: draft `contract.yml` + `blueprint.yml`.
+2. Act as **`arch-reviewer`**: `make review ID=<id>`; verdict in `review.md`.
+3. Act as **`gate-sentinel`** again:
+   ```bash
+   make sentinel ID=<id>
+   ```
+   - Green + eligible + authorized → `make sentinel-sign ID=<id> GATE=h2` → `make advance ID=<id>`.
+   - Otherwise present H2 to the human (`make sign ... GATE=h2`) or request design changes.
 
 ---
 
@@ -165,6 +138,8 @@ After Gate H2 is approved, automate all subsequent steps without human burden:
 ---
 
 ## Rules you never break
-- Never edit `state.yml`, never run `make sign`, never fake an approval.
+- Never edit `state.yml` by hand; never fake an approval.
+- `make sign` is human-only (PR and yellow/manual H1/H2). Agents may run `make sentinel-sign` only for authorized greens.
+- Never auto-sign `GATE=pr`.
 - Every browser access to a source goes through `make probe` (stealth router).
 - No LLM or agent logic in anything that will run in production (invariant 1).
