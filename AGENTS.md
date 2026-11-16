@@ -1,103 +1,66 @@
-# PROJECT CONTEXT & ARCHITECTURE SPECIFICATION (`AGENTS.md`)
+# Especificación de Arquitectura y Contexto / Project Context & Architecture Specification (`AGENTS.md`)
 
-> **TARGET AUDIENCE:** Autonomous AI Agents (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`, `gate-sentinel`).
-> **CORE PRINCIPLE:** AI operates strictly at **Design-Time** to generate deterministic artifacts. **Run-Time** execution is 100% deterministic and free of LLM inference.
-
----
-
-## 1. SYSTEM OVERVIEW & ARCHITECTURAL INVARIANTS
-
-This platform ingests, normalizes, and governs unstructured and structured data from external institutions into a unified analytical product (**Producto OI - Opportunity Intelligence**). 
-
-### Mandatory Architectural Invariants
-1. **Zero AI at Run-Time:** Never embed LLM calls, dynamic prompts, or non-deterministic agent logic inside production extractors, Airflow DAGs, or dbt models.
-2. **Single Source of Truth for Contracts:** All schemas, validation rules, and canonical mappings live in this repository (`configs/contracts/`, `configs/ingestions/`) and generate bronze, dbt and DAGs via YAML & Jinja templates. Never duplicate a contract elsewhere.
-3. **Browser access through Obscura (`obscura.sh` + `playwright`):** `obscura.sh` is a headless browser written in Rust and built for AI agents; it is the *destination* of every browser session. All browser-based discovery probes (`source-scout`) and production web extractors requiring DOM navigation use `playwright`, but instead of opening a local Chromium on the extractor host, Playwright connects to Obscura over the Chrome DevTools Protocol (`connect_over_cdp`, endpoint `OBSCURA_CDP_URL`, bearer token `OBSCURA_CDP_TOKEN`). Using Obscura does not replace the legal review: a site's Terms of Service, `robots.txt` and any block (WAF, captcha) are recorded as findings for Gate H1.
-4. **Stream-to-Rust Integrity & Binary Triage (`SourceRuntime` / `RustWorker`):** Python extractors stream raw byte payloads to `RustWorker` / `SourceRuntime`. Every payload is written to **RustFS (S3 `Landing`)** first — structured documents (JSON, XML, HTML, CSV) and complex binaries (PDF, DOCX). Only PDF/DOCX then pass through Apache Tika; the extracted `.txt` is written back to RustFS beside the raw object. Typed PostgreSQL `bronze` rows are loaded by **reading that object back from RustFS**. JSON, XML, HTML and CSV never touch Tika.
-5. **Strict Human-in-the-Loop (HITL) Gates:** Humans own **Macro-H1** (batch risk-lane authorization via `make authorize-lane`), **Producto OI value review**, and **PR Merge** (`make sign GATE=pr`). Per-source **H1/H2** may be auto-signed by `gate-sentinel` only when the source is in the authorized green lane and deterministic rules pass 100% (`make sentinel` / `make sentinel-sign`). Yellow/red and exceptions stay human. Agents never sign PR and never edit `state.yml` by hand.
+[![Language: ES](https://img.shields.io/badge/Language-Espa%C3%B1ol-yellow.svg)](#español)
+[![Language: EN](https://img.shields.io/badge/Language-English-blue.svg)](#english)
 
 ---
 
-## 2. TECHNOLOGY STACK & TOOLING MATRIX
+## Español
 
-### 2.1 Design-Time (Agentic Harness)
-| Component | Technology / Version | Agentic Role & Responsibility |
+> **AUDIENCIA OBJETIVO:** Agentes Autónomos de IA (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`, `gate-sentinel`).  
+> **PRINCIPIO FUNDAMENTAL:** La IA opera estrictamente en **Tiempo de Diseño (Design-Time)** para generar artefactos deterministas. La ejecución en **Tiempo de Ejecución (Run-Time)** es 100% determinista y libre de inferencia de LLMs.
+
+### 1. Invariantes Arquitectónicos Obligatorios
+1. **Cero IA en Tiempo de Ejecución:** Nunca incrustar llamadas a LLMs, prompts dinámicos o lógicas no deterministas dentro de extractores de producción, DAGs de Airflow o modelos dbt.
+2. **Fuente Única de Verdad para Contratos:** Todos los esquemas, reglas de validación y mapeos canónicos residen en este repositorio (`configs/contracts/`, `configs/ingestions/`) y generan tablas Bronze, dbt y DAGs mediante plantillas YAML y Jinja. Nunca duplicar un contrato en otro lugar.
+3. **Acceso al Navegador mediante Obscura (`obscura.sh` + `playwright`):** `obscura.sh` es un navegador headless en Rust diseñado para agentes de IA; es el destino de toda sesión de navegación. Las sondas de descubrimiento (`source-scout`) y los extractores web se conectan a Obscura sobre el protocolo CDP (`connect_over_cdp`, endpoint `OBSCURA_CDP_URL`, token `OBSCURA_CDP_TOKEN`). El uso de Obscura no reemplaza la revisión legal: los Términos de Servicio, `robots.txt` y cualquier bloqueo (WAF, captcha) se registran como hallazgos para el Gate H1.
+4. **Integridad de Streaming a Rust y Triaje Binario (`SourceRuntime` / `RustWorker`):** Los extractores en Python transmiten flujos de bytes directamente al worker nativo de Rust. Cada carga útil se escribe primero en **RustFS (S3 Landing)** —documentos estructurados (JSON, XML, HTML, CSV) y binarios complejos (PDF, DOCX). Solo los PDFs/DOCXs pasan por Apache Tika; el texto `.txt` extraído se almacena nuevamente en RustFS junto al archivo original. Las filas tipadas de PostgreSQL `bronze` se cargan leyendo dicho objeto desde RustFS. JSON, XML, HTML y CSV nunca tocan Tika.
+5. **Compuertas Estrictas con Humano en el Bucle (HITL):** Los humanos son propietarios de **Macro-H1** (autorización por lotes mediante `make authorize-lane`), la **revisión de valor de Producto OI**, y la aprobación del **PR Merge** (`make sign GATE=pr`). Las compuertas H1/H2 por fuente pueden ser autofirmadas por `gate-sentinel` únicamente cuando la fuente pertenece al carril verde autorizado y cumple el 100% de las reglas deterministas (`make sentinel` / `make sentinel-sign`).
+
+### 2. Matriz de Tecnologías
+
+| Componente | Tecnología | Responsabilidad |
 | :--- | :--- | :--- |
-| **Core Orchestrator** | Claude Code | Primary repository orchestrator, scaffolding executor (`make new-ingestion`), and multi-agent coordinator. |
-| **Discovery Probes & Browser** | Python (`playwright`, `pytest`) + `obscura.sh` (headless browser in Rust, reached over CDP) | Used by `source-scout` to run ephemeral probe scripts that connect to Obscura, map DOM/API structures, and detect and report WAF, Captcha and ToS blocks. |
-| **Contract Engine** | YAML & Jinja2 | Read from `configs/` of this repository to compile data dictionaries, quality rules, and DAG/dbt generation templates. |
+| **Arnés de Diseño** | Python (`playwright`, `pytest`) + `obscura.sh` | Sondas efímeras de sondeo sobre CDP, análisis de DOM y detección de bloqueos. |
+| **Orquestador** | Apache Airflow `3.4.0` | Carga de DAGs declarativos YAML nativos (AIP-85) sin código Python dinámico. |
+| **Worker de Ingesta** | Rust `1.80` (`tokio`, `sha2`) | Hashing SHA-256, persistencia en RustFS S3 y triaje hacia Apache Tika y PostgreSQL Bronze. |
+| **Parser Binario** | Apache Tika `4.1.0` | Extracción de texto plano exclusivo para archivos PDF y DOCX. |
+| **Lakehouse / Almacén** | RustFS S3 + PostgreSQL `16` | S3 inmutable bajo Hive y tablas tipadas en PostgreSQL Bronze. |
+| **Transformación** | dbt Core `1.12.3` | Modelado modular en capas: Staging, Intermediate y Producto OI (Gold). |
 
-### 2.2 Run-Time (Deterministic Infrastructure)
-| Component | Technology / Version | Operational Responsibility |
-| :--- | :--- | :--- |
-| **Workflow Orchestrator** | Apache Airflow `3.4.0` | Latest stable release (with native YAML DAG importer / AIP-85 support). Parses declarative `.yml` configurations generated at design-time to instantiate and schedule deterministic DAGs. |
-| **Extractor & Browser Layer** | Python + `playwright` + `obscura.sh` | Executes production extraction from institutional web portals/APIs: Playwright drives the Obscura browser over CDP (`OBSCURA_CDP_URL`) and streams raw bytes directly to the Rust worker. |
-| **SourceRuntime (`RustWorker`)** | Rust `1.80` (`tokio`, `sha2`) | Writes every payload to RustFS first, then loads typed PostgreSQL `bronze` from that object. Only PDF/DOCX are sent to Apache Tika; the plain text is stored back in RustFS. |
-| **Binary Parser** | Apache Tika Server `4.1.0` | Invoked by `RustWorker` only after the raw PDF/DOCX is already in RustFS. The extracted `.txt` is written to Landing next to the binary. |
-
-### 2.3 Data Warehouse, Lakehouse & Governance
-| Component | Technology / Version | Storage / Modeling Responsibility |
-| :--- | :--- | :--- |
-| **Object Storage (Landing)** | RustFS S3 | Immutable Data Lake storing raw payloads and binaries under Hive-style partitioning. |
-| **Data Warehouse** | PostgreSQL `16` | Hosts typed `bronze` tables (one per dataset, `JSONB` payload + lineage columns, plus a quarantine table) and analytical schemas managed by dbt. |
-| **Transformation Engine** | dbt Core `1.12.3` (`dbt-postgres 1.10.1`) | Manages SQL transformations across `Staging`, `Intermediate`, and `Producto OI` layers. |
-| **Data Catalog & Lineage** | OpenMetadata `1.4.2` | Automatically ingests Airflow execution logs and dbt `manifest.json` artifacts to map 5-layer end-to-end lineage. |
-
----
-
-## 3. DESIGN-TIME WORKFLOW (AGENTIC SDLC)
-
-Every new institutional ingestion pipeline is built autonomously through a 5-phase state machine with strategic human checkpoints (Macro-H1, Producto OI value, PR) and optional sentinel auto-sign for green H1/H2:
-
+### 3. Ciclo de Vida de Diseño (Agentes)
 ```text
 [1. Discovery] ──> [2. Assessment] ──(H1)──> [3. Blueprint] ──(H2)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
 ```
-
-[4. Implement] and [5. Verify] run in this repository (`configs/`, `python/scrapagents/extractors/<id>/`, see section 5);
-[1. Discovery] to [3. Blueprint] produce their evidence in `ingestions/<id>/` of this repository.
-
-### Gates (operational rules)
-| Gate | Between | Evidence required | Who signs |
-| :--- | :--- | :--- | :--- |
-| **H1** | Assessment -> Blueprint | `ingestions/<id>/assessment.md` (legal/ToS, anti-bot, volume, refresh analysis, aligned with `docs/contexto_de_busqueda_y_criterios.md`) | Human owner |
-| **H2** | Blueprint -> Implement | `ingestions/<id>/blueprint.yml` + draft contract (schema, quality rules, `configs/ingestions/<id>.yml` draft) | Human owner + arch-reviewer |
-| **PR** | Verify -> merge | `make validate` green (lint, tests, gates, contracts, generated files current), reviewer approval | Human reviewer |
-
-Agents must strictly consult **`docs/contexto_de_busqueda_y_criterios.md`** as the single canonical guide for search intent, required opportunity attributes, and out-of-scope exclusions during Discovery, Assessment, and Blueprint.
-
-Agents and their commands: `source-scout` (`make probe`), `source-assessor`, `silver-designer`, `arch-reviewer` (`make review`), `gate-sentinel` (`make sentinel` / `make sentinel-sign`), coordinated by the `new-source` skill; `make status` shows where a source stands and `make advance` moves its phase. Humans run `make authorize-lane` (Macro-H1) and `make sign` (PR / yellow path); see `docs/implementation-plan.md` F5 and `docs/producto-oi-value-review.md`.
-
-State lives in `ingestions/<id>/state.yml` (`phase`, `h1`, `h2`, `pr`). An agent MUST NOT move
-`phase` past a gate whose `status` is not `approved` and whose `approved_by` is empty.
+Los agentes deben consultar obligatoriamente **`docs/contexto_de_busqueda_y_criterios.md`** como guía canónica de búsqueda, atributos requeridos y exclusiones.
 
 ---
 
-## 4. REPOSITORY LAYOUT (this repo: design-time harness)
+## English
 
+> **TARGET AUDIENCE:** Autonomous AI Agents (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`, `gate-sentinel`).  
+> **CORE PRINCIPLE:** AI operates strictly at **Design-Time** to generate deterministic artifacts. **Run-Time** execution is 100% deterministic and free of LLM inference.
+
+### 1. Mandatory Architectural Invariants
+1. **Zero AI at Run-Time:** Never embed LLM calls, dynamic prompts, or non-deterministic agent logic inside production extractors, Airflow DAGs, or dbt models.
+2. **Single Source of Truth for Contracts:** All schemas, validation rules, and canonical mappings live in this repository (`configs/contracts/`, `configs/ingestions/`) and generate bronze, dbt, and DAGs via YAML & Jinja templates. Never duplicate a contract elsewhere.
+3. **Browser access through Obscura (`obscura.sh` + `playwright`):** `obscura.sh` is a headless browser written in Rust built for AI agents; it is the destination of every browser session. All probes (`source-scout`) and web extractors connect to Obscura over CDP (`connect_over_cdp`, endpoint `OBSCURA_CDP_URL`, token `OBSCURA_CDP_TOKEN`). Obscura does not replace legal review: Terms of Service, `robots.txt`, and blocks (WAF, captcha) are recorded as findings for Gate H1.
+4. **Stream-to-Rust Integrity & Binary Triage (`SourceRuntime` / `RustWorker`):** Python extractors stream raw byte payloads to `RustWorker`. Every payload is written to **RustFS (S3 Landing)** first — structured documents (JSON, XML, HTML, CSV) and complex binaries (PDF, DOCX). Only PDF/DOCX then pass through Apache Tika; the extracted `.txt` is written back to RustFS beside the raw object. Typed PostgreSQL `bronze` rows are loaded by reading that object back from RustFS. JSON, XML, HTML, and CSV never touch Tika.
+5. **Strict Human-in-the-Loop (HITL) Gates:** Humans own **Macro-H1** (batch risk-lane authorization via `make authorize-lane`), **Producto OI value review**, and **PR Merge** (`make sign GATE=pr`). Per-source **H1/H2** may be auto-signed by `gate-sentinel` only when the source is in the authorized green lane and deterministic rules pass 100% (`make sentinel` / `make sentinel-sign`).
+
+### 2. Technology & Tooling Matrix
+
+| Component | Technology | Responsibility |
+| :--- | :--- | :--- |
+| **Design Harness** | Python (`playwright`, `pytest`) + `obscura.sh` | Ephemeral discovery probe scripts over CDP, DOM mapping, and block detection. |
+| **Orchestrator** | Apache Airflow `3.4.0` | Native YAML declarative DAG importer (AIP-85) without dynamic runtime Python. |
+| **Ingestion Worker** | Rust `1.80` (`tokio`, `sha2`) | SHA-256 hashing, RustFS S3 Landing storage, and triage to Apache Tika and PostgreSQL Bronze. |
+| **Binary Parser** | Apache Tika `4.1.0` | Plain-text extraction strictly for PDF and DOCX files. |
+| **Lakehouse / Warehouse**| RustFS S3 + PostgreSQL `16` | Immutable S3 under Hive partitioning and typed Bronze PostgreSQL tables. |
+| **Transformation** | dbt Core `1.12.3` | Modular transformations across Staging, Intermediate, and Producto OI (Gold). |
+
+### 3. Design-Time Workflow (Agentic SDLC)
 ```text
-AGENTS.md / Contex.md   architecture context (this file is canonical for agents)
-docs/                   implementation plan
-configs/contracts/      `<source>/<dataset>.yml`: the single source of contracts
-configs/ingestions/     `<id>.yml`: one declaration per source (datasets, acquisition, schedule, pool)
-python/scrapagents/     contract loader/validator, stealth interface, runtime client, scaffolding helpers
-dags/                   declarative Airflow YAML DAGs generated by `make generate-dags` (never hand-edited); one DAG per source
-bronze/                 typed bronze DDL and RustWorker registry generated by `make generate-bronze` (never hand-edited)
-dbt/                    dbt project: generated sources/staging/intermediate; hand-designed `producto_oi` (needs H1 and H2)
-ingestions/_template/   design-time dossier template (discovery, assessment, blueprint, state)
-scripts/                new_ingestion.py (dossier scaffold)
-rust/source_runtime/    native SourceRuntime / RustWorker (hashing, triage, sinks)
-infra/<stack>/          one docker compose project per domain (warehouse, ingestion; later orchestration, transformation, governance) on the shared network `scrapagents_net`
-.cursor/rules/          invariants and gates as always-applied rules
+[1. Discovery] ──> [2. Assessment] ──(H1)──> [3. Blueprint] ──(H2)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
 ```
-
-## 5. CONTRACTS AND SCHEMAS
-
-* Contracts live in `configs/contracts/<source_system>/<dataset>.yml`; a source is declared once in
-  `configs/ingestions/<id>.yml`. Allowed contract types: `string, integer, number, boolean, object,
-  array, json, date, timestamp`; owner must be `data_team_<team>`. Rules: `scrapagents.contracts`.
-* Implementation (phase 4) happens here: `configs/`, an extractor package
-  `python/scrapagents/extractors/<id>/`, then `make generate-bronze generate-dbt generate-dags`.
-
-## 6. IMPLEMENTATION PHASES
-F1 Foundations (done) -> F2 Runtime core (done) -> F3 Airflow orchestration (done) -> F4 dbt / Producto OI (done) -> F5 Design-time agents (done) -> F6 Governance.
-Details and exit criteria: `docs/implementation-plan.md`.
+Agents must strictly consult **`docs/contexto_de_busqueda_y_criterios.md`** as the single canonical guide for search intent, required attributes, and exclusions.

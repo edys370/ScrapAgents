@@ -1,7 +1,33 @@
-# Resumen Ejecutivo de Arquitectura, Flujo de Datos y Requerimientos de Producto
-**Proyecto:** ScrapAgents — Plataforma de Ingesta, Normalización y Gobierno para Producto OI (Opportunity Intelligence)
+# Resumen Ejecutivo de Arquitectura y Requerimientos / Executive Architecture Summary
+**Proyecto / Project:** ScrapAgents — Plataforma de Ingesta, Normalización y Gobierno para Producto OI (Opportunity Intelligence)
+
+[![Language: ES](https://img.shields.io/badge/Language-Espa%C3%B1ol-yellow.svg)](#español)
+[![Language: EN](https://img.shields.io/badge/Language-English-blue.svg)](#english-summary)
 
 ---
+
+## English Summary
+
+### Overview & Core Invariants
+ScrapAgents is a deterministic ingestion, normalization, and governance platform designed to feed the **Producto OI (Opportunity Intelligence)** analytical data product from institutional web portals and APIs.
+
+* **Invariant 1: Zero AI at Run-Time:** AI operates strictly at design time to analyze web pages, model schemas, and generate code. Production execution (Airflow DAGs, Python extractors, dbt models) is 100% deterministic with zero LLM inference.
+* **Invariant 2: Single Source of Truth for Contracts:** All data schemas and validation rules live in `configs/contracts/` and `configs/ingestions/`.
+* **Invariant 3: Stealth Browsing with Obscura (`obscura.sh`):** All automated browser access connects via Playwright over CDP to Obscura, a headless browser in Rust equipped with anti-detection features.
+* **Invariant 4: Stream-to-Rust & Binary Triage:** Python extractors stream raw bytes to `SourceRuntime` (RustWorker) for in-flight SHA-256 hashing and persistence to S3 Landing. Only complex binaries (PDF, DOCX) pass through Apache Tika; structured formats (JSON, XML, HTML, CSV) never touch Tika.
+* **Invariant 5: Strict Human-in-the-Loop (HITL) Gates:** Strategic human oversight at Macro-H1 (batch risk lanes), H1 (legal/ToS viability), H2 (contract and architecture), and PR merge. Green-lane sources may be auto-signed by `gate-sentinel`.
+
+### Layered Architecture
+1. **Design-Time Harness:** AI agents (`source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`, `gate-sentinel`) and code generators.
+2. **Browser & Extraction Layer:** Python extractors driving Obscura over CDP (`port 9222`).
+3. **Ingestion & Triage Layer:** `SourceRuntime` (Rust worker on `port 8088`), Apache Tika (`port 9998`), and RustFS S3 Landing (`port 9000/9001`).
+4. **Data Warehouse Layer:** PostgreSQL 16 (`port 5433`) hosting typed Bronze tables and quarantine schemas.
+5. **Transformation Layer:** dbt Core 1.12.3 managing Staging, Intermediate, and Producto OI (Gold) layers.
+6. **Orchestration Layer:** Apache Airflow 3.4.0 with native declarative YAML DAG importer (AIP-85).
+
+---
+
+## Español
 
 ## 1. Visión General y Principios Invariantes
 

@@ -1,225 +1,186 @@
-# Manual de Usuario: Plataforma ScrapAgents
+# Manual de Usuario / User Manual: ScrapAgents
 
-> **BIENVENIDO A SCRAPAGENTS:** Sistema determinista de ingesta, normalización y gobernanza de datos no estructurados y estructurados para el producto analítico **Producto OI (Opportunity Intelligence)**.
->
-> Este manual consolida paso a paso la operación del sistema, desde la configuración inicial hasta la adición de nuevas fuentes y el monitoreo de DAGs.
-
----
-
-## Índice
-
-1. [Arquitectura y Concepto General](#1-arquitectura-y-concepto-general)
-2. [Requisitos Previos y Configuración](#2-requisitos-previos-y-configuración)
-3. [Levantamiento de la Infraestructura Local](#3-levantamiento-de-la-infraestructura-local)
-4. [Criterios de Búsqueda y Negocio](#4-criterios-de-búsqueda-y-negocio)
-5. [Ciclo de Vida para Añadir una Nueva Fuente](#5-ciclo-de-vida-para-añadir-una-nueva-fuente)
-6. [Generación de Artefactos (Bronze, dbt, DAGs)](#6-generación-de-artefactos-bronze-dbt-dags)
-7. [Orquestación y Monitoreo en Apache Airflow](#7-orquestación-y-monitoreo-en-apache-airflow)
-8. [Transformación Analítica con dbt y Producto OI](#8-transformación-analítica-con-dbt-y-producto-oi)
-9. [Solución de Problemas (Troubleshooting)](#9-solución-de-problemas-troubleshooting)
+[![Language: ES](https://img.shields.io/badge/Language-Espa%C3%B1ol-yellow.svg)](#español)
+[![Language: EN](https://img.shields.io/badge/Language-English-blue.svg)](#english)
 
 ---
 
-## 1. Arquitectura y Concepto General
+## Español
 
-ScrapAgents se rige por un principio fundamental:
-* **La Inteligencia Artificial opera solo en Tiempo de Diseño (Design-Time):** Los agentes autónomos exploran páginas web, identifican estructuras, evalúan riesgos legales y diseñan esquemas.
-* **En Tiempo de Ejecución (Run-Time), el sistema es 100% determinista:** No existen llamadas a modelos de lenguaje (LLMs) ni lógicas dinámicas dentro de los extractores de producción, tareas de Airflow o transformaciones SQL.
+> **BIENVENIDO A SCRAPAGENTS:** Sistema determinista de ingesta, normalización y gobernanza de datos para el producto analítico **Producto OI (Opportunity Intelligence)**.
 
-### Documentación Detallada por Áreas
-Para profundizar en cada subsistema, consulta las guías especializadas:
-* 🤖 [**Área 1: Agentes y Skills**](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docs/areas/1_agentes_y_skills/README.md)
-* 📊 [**Área 2: Datos, Contratos y Modelado**](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docs/areas/2_datos_y_contratos/README.md)
-* 🚀 [**Área 3: Extracción, Navegación y Runtime**](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docs/areas/3_extraccion_y_runtime/README.md)
-* 🐳 [**Área 4: Orquestación, Contenedores e Infraestructura**](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docs/areas/4_orquestacion_e_infraestructura/README.md)
+### Índice (Español)
+1. [Arquitectura y Concepto General](#1-arquitectura-y-concepto-general-es)
+2. [Requisitos Previos y Configuración](#2-requisitos-previos-y-configuración-es)
+3. [Levantamiento de la Infraestructura Local](#3-levantamiento-de-la-infraestructura-local-es)
+4. [Criterios de Búsqueda y Negocio](#4-criterios-de-búsqueda-y-negocio-es)
+5. [Ciclo de Vida para Añadir una Nueva Fuente](#5-ciclo-de-vida-para-añadir-una-nueva-fuente-es)
+6. [Generación de Artefactos (Bronze, dbt, DAGs)](#6-generación-de-artefactos-bronze-dbt-dags-es)
+7. [Orquestación y Monitoreo en Apache Airflow](#7-orquestación-y-monitoreo-en-apache-airflow-es)
+8. [Transformación Analítica con dbt y Producto OI](#8-transformación-analítica-con-dbt-y-producto-oi-es)
+9. [Solución de Problemas (Troubleshooting)](#9-solución-de-problemas-troubleshooting-es)
 
 ---
 
-## 2. Requisitos Previos y Configuración
+### 1. Arquitectura y Concepto General (ES)
+ScrapAgents opera bajo dos principios:
+* **IA en Tiempo de Diseño (Design-Time):** Los agentes autónomos exploran páginas web, diseñan contratos y generan código determinista.
+* **Cero IA en Tiempo de Ejecución (Run-Time):** No existen llamadas a LLMs ni lógicas dinámicas dentro de extractores de producción, tareas de Airflow o transformaciones SQL.
 
-### Requisitos del Sistema
-* **Docker y Docker Compose** (mínimo v2.20).
-* **Python 3.11 o superior** (se recomienda usar `uv` para gestión rápida de entornos).
-* **Rust 1.80 o superior** (con `cargo` para el runtime nativo).
+#### Documentación por Áreas
+* 🤖 [**Área 1: Agentes y Skills**](docs/areas/1_agentes_y_skills/README.md)
+* 📊 [**Área 2: Datos, Contratos y Modelado**](docs/areas/2_datos_y_contratos/README.md)
+* 🚀 [**Área 3: Extracción, Navegación y Runtime**](docs/areas/3_extraccion_y_runtime/README.md)
+* 🐳 [**Área 4: Orquestación, Contenedores e Infraestructura**](docs/areas/4_orquestacion_e_infraestructura/README.md)
 
-### Instalación del Entorno Virtual
+### 2. Requisitos Previos y Configuración (ES)
+* **Docker y Docker Compose** (v2.20+).
+* **Python 3.11+** (recomendado `uv`).
+* **Rust 1.80+** (para compilación del motor nativo `source_runtime`).
+
 ```bash
-# Crear el entorno virtual e instalar dependencias del arnés y extractores
 uv venv --python 3.13 .venv
 source .venv/bin/activate
 uv pip install -e ".[dev,extractors,smoke]"
-```
-
-### Configuración de Variables de Entorno
-Copia el archivo de plantilla a `.env`:
-```bash
 make infra-env
-```
-Genera un token seguro para el navegador Obscura y colócalo en `.env` (o en tu shell):
-```bash
 export OBSCURA_CDP_TOKEN="$(openssl rand -hex 32)"
 ```
 
----
-
-## 3. Levantamiento de la Infraestructura Local
-
-El entorno local está unificado bajo un único [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml). Para encender todos los servicios:
-
+### 3. Levantamiento de la Infraestructura Local (ES)
 ```bash
 make infra-up
 ```
+* **Airflow UI:** [http://localhost:8080](http://localhost:8080)
+* **RustFS S3 Console:** [http://localhost:9001](http://localhost:9001) (`scrapagents` / `change-me-local-only`)
+* **PostgreSQL Warehouse:** `localhost:5433` (`scrapagents` / `change-me-local-only`)
+* **SourceRuntime (Rust):** `http://localhost:8088`
+* **Obscura CDP Browser:** `http://localhost:9222`
 
-### Acceso a las Interfaces de Usuario y Servicios
-* **Apache Airflow UI:** [http://localhost:8080](http://localhost:8080) (acceso directo en modo desarrollo).
-* **RustFS S3 Console:** [http://localhost:9001](http://localhost:9001) (Usuario: `scrapagents`, Password: `change-me-local-only`).
-* **PostgreSQL Warehouse:** `localhost:5433` (Base de datos: `scrapagents`, Usuario: `scrapagents`).
-* **Microservicio SourceRuntime (Rust):** `http://localhost:8088`.
-* **Obscura Headless Browser (CDP):** `http://localhost:9222`.
+Para apagar los servicios: `make infra-down`.
 
-Para apagar los servicios:
-```bash
-make infra-down
-```
+### 4. Criterios de Búsqueda y Negocio (ES)
+Consulta [**Criterios de Búsqueda y Contexto de Negocio**](docs/contexto_de_busqueda_y_criterios.md):
+* ✅ **Buscar:** Subvenciones I+D+i, becas de posgrado, premios científicos, licitaciones internacionales y fondos concursables.
+* ❌ **Ignorar:** Compras de oficina (papel, tóner), noticias de prensa, trámites internos y portales con login.
 
----
-
-## 4. Criterios de Búsqueda y Negocio
-
-Antes de crear una fuente, consulta el documento obligatorio:
-📄 [**Criterios de Búsqueda y Contexto de Negocio (Producto OI)**](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docs/contexto_de_busqueda_y_criterios.md)
-
-### Resumen Rápido: ¿Qué buscar y qué descartar?
-* ✅ **EN-SCOPE (Buscar):** Subvenciones I+D+i (Grants), becas de posgrado, premios científicos, llamados a licitación/consultoría multilateral (Banco Mundial, CAF, etc.).
-* ❌ **OUT-OF-SCOPE (Ignorar):** Compras rutinarias de papelería/tóner/seguridad física, noticias de prensa institucionales, trámites internos de funcionarios, portales privados con login y agregadores secundarios que solo copian enlaces.
-
----
-
-## 5. Ciclo de Vida para Añadir una Nueva Fuente
-
-Cada nueva institución transcurre por un dossier formal en `ingestions/<id>/`:
-
+### 5. Ciclo de Vida para Añadir una Nueva Fuente (ES)
 ```text
 Discovery ──> Assessment ──(H1)──> Blueprint ──(H2)──> Implementación ──> Verificación ──(PR)
 ```
+1. **Crear Dossier:** `make new-ingestion ID=mi_fuente TEAM=sistemas_internos`
+2. **Discovery:** `make probe ID=mi_fuente URL="https://portal.ejemplo.org/convocatorias"` y luego `make advance ID=mi_fuente`.
+3. **Assessment & H1:** `make sign ID=mi_fuente GATE=h1 BY="Tu Nombre"` (o `make sentinel-sign` para fuentes verdes).
+4. **Blueprint & H2:** `make review ID=mi_fuente` y luego `make sign ID=mi_fuente GATE=h2 BY="Tu Nombre"`.
+5. **Implementación:** Redactar extractor en `python/scrapagents/extractors/mi_fuente/extractor.py`.
 
-### Paso 1: Crear el Dossier de la Fuente
+### 6. Generación de Artefactos (Bronze, dbt, DAGs) (ES)
 ```bash
-make new-ingestion ID=mi_institucion TEAM=sistemas_internos
-```
-Esto crea la carpeta `ingestions/mi_institucion/` con los archivos base.
-
-### Paso 2: Fase 1 - Discovery (Sondeo del Portal)
-Ejecuta el probeo a través del navegador sigiloso Obscura:
-```bash
-make probe ID=mi_institucion URL="https://portal.ejemplo.org/convocatorias"
-```
-El agente `source-scout` completará `discovery.md` con la estructura de páginas, APIs encontradas y `robots.txt`.
-
-Verifica el estado:
-```bash
-make status ID=mi_institucion
-```
-Cuando la evidencia esté completa, avanza de fase:
-```bash
-make advance ID=mi_institucion
-```
-
-### Paso 3: Fase 2 - Assessment y Gate H1 (Viabilidad)
-El agente `source-assessor` analiza los riesgos legales (ToS), anti-bot y privacidad (LOPDP) en `assessment.md`.
-
-* **Firma de Gate H1:**
-  * Si la fuente está en el carril verde autorizado: el auditor automático puede firmar con:
-    ```bash
-    make sentinel-sign ID=mi_institucion GATE=h1
-    ```
-  * En casos manuales o amarillos, el humano firma en su terminal:
-    ```bash
-    make sign ID=mi_institucion GATE=h1 BY="Tu Nombre"
-    ```
-Avanza a la siguiente fase:
-```bash
-make advance ID=mi_institucion
-```
-
-### Paso 4: Fase 3 - Blueprint y Gate H2 (Contrato de Datos)
-El agente `silver-designer` redacta el contrato formal (`contract.yml`) y el plan de adquisición (`blueprint.yml`).
-El agente auditor ejecuta la revisión técnica:
-```bash
-make review ID=mi_institucion
-```
-Una vez que el veredicto sea aprobatorio, se firma el Gate H2:
-```bash
-make sign ID=mi_institucion GATE=h2 BY="Tu Nombre"
-```
-Avanza a implementación:
-```bash
-make advance ID=mi_institucion
-```
-
-### Paso 5: Fase 4 - Implementación del Extractor
-1. Mover o confirmar la configuración en `configs/ingestions/mi_institucion.yml` y el contrato en `configs/contracts/mi_institucion/<dataset>.yml`.
-2. Crear el paquete extractor en `python/scrapagents/extractors/mi_institucion/extractor.py`.
-
----
-
-## 6. Generación de Artefactos (Bronze, dbt, DAGs)
-
-Una vez que el contrato y la configuración están en `configs/`, la plataforma genera automáticamente el código determinista:
-
-```bash
-# 1. Generar DDL de tablas Bronze en PostgreSQL y registro de RustWorker
-make generate-bronze
-
-# 2. Aplicar las tablas en la base de datos PostgreSQL local
-make bronze-apply
-
-# 3. Generar modelos de dbt (Sources, Staging, Intermediate y Tests)
+make generate-bronze && make bronze-apply
 make generate-dbt
-
-# 4. Generar los DAGs declarativos YAML para Airflow
-make generate-dags
-
-# 5. Importar pools de concurrencia a Airflow
-make airflow-pools
+make generate-dags && make airflow-pools
 ```
 
----
+### 7. Orquestación y Monitoreo en Apache Airflow (ES)
+Abre [http://localhost:8080](http://localhost:8080) y activa el DAG `ingest__<id>`.
 
-## 7. Orquestación y Monitoreo en Apache Airflow
-
-1. Abre la consola de Airflow en [http://localhost:8080](http://localhost:8080).
-2. Verás los DAGs correspondientes a cada fuente bajo el nombre `ingest__<id>`.
-3. Cada DAG realiza de forma secuencial:
-   * **`runtime_ready`:** Verifica la disponibilidad del motor en Rust.
-   * **`land__<dataset>`:** Ejecuta el extractor Python respetando el pool del sitio.
-   * **`dbt_build`:** Compila y testea los modelos de staging e intermediate de esa fuente.
-4. Puedes activar el DAG para su ejecución según el cron configurado o dispararlo manualmente mediante el botón **Trigger DAG**.
-
----
-
-## 8. Transformación Analítica con dbt y Producto OI
-
-Para probar las transformaciones de datos directamente desde tu terminal:
+### 8. Transformación Analítica con dbt y Producto OI (ES)
 ```bash
-# Ejecutar transformaciones y pruebas de dbt para una fuente específica
-dbt build --select tag:source_mi_institucion --project-dir dbt --profiles-dir dbt
-
-# O verificar todos los modelos del catálogo
-make dbt-check-catalog
+dbt build --select tag:source_mi_fuente --project-dir dbt --profiles-dir dbt
 ```
 
-En la capa **Producto OI**, las oportunidades de múltiples fuentes se combinan limpiamente:
-* Si dos o más instituciones colaboran en una misma convocatoria (ej. CAF y Banco Mundial), el modelo de dbt las unifica bajo un identificador canónico único y preserva a ambas en la columna `collaborating_institutions`.
+### 9. Solución de Problemas (Troubleshooting) (ES)
+* **Connection refused 8088:** Corre `make infra-up` y confirma que `scrapagents-source-runtime` esté levantado.
+* **Timeout en 9222:** Verifica `OBSCURA_CDP_TOKEN` en `.env` (al menos 32 caracteres) y contenedor activo.
+* **Extractor lento:** Usa `max_listing_pages: 5` para ejecuciones diarias y confirma `block_static_resources: true`.
+* **Airflow missing pool:** Corre `make airflow-pools`.
 
 ---
 
-## 9. Solución de Problemas (Troubleshooting)
+## English
 
-| Síntoma | Causa Frecuente | Solución Recomendada |
-| :--- | :--- | :--- |
-| **Error `connection refused` en puerto 8088** | `SourceRuntime` no está levantado. | Ejecuta `make infra-up` y confirma que `scrapagents-source-runtime` esté en estado `Up`. |
-| **Timeout de navegación en Obscura (puerto 9222)** | Token de CDP ausente o URL no resuelta. | Verifica que `OBSCURA_CDP_TOKEN` esté definido en `.env` (al menos 32 caracteres) y que el contenedor `scrapagents-obscura` esté activo. |
-| **Extractor muy lento al recorrer páginas** | Paginación profunda o pausas excesivas. | Configura `max_listing_pages: 5` en `configs/ingestions/<id>.yml` para ejecuciones diarias y asegura `block_static_resources: true`. |
-| **Fallo en `make advance` por gate no firmado** | El archivo `state.yml` no tiene la firma del humano o sentinel. | Revisa con `make status ID=<id>` qué requisito falta antes de intentar avanzar la fase. |
-| **Error en Airflow: "Task waiting on missing pool"** | Los pools no se han importado tras crear una nueva fuente. | Ejecuta `make airflow-pools` para sincronizar `dags/_pools.json` con la base de datos de Airflow. |
+> **WELCOME TO SCRAPAGENTS:** Deterministic data ingestion, normalization, and governance platform for **Producto OI (Opportunity Intelligence)**.
+
+### Table of Contents (English)
+1. [General Architecture & Concept](#1-general-architecture--concept-en)
+2. [Prerequisites & Environment Setup](#2-prerequisites--environment-setup-en)
+3. [Starting Local Infrastructure](#3-starting-local-infrastructure-en)
+4. [Search Intent & Business Criteria](#4-search-intent--business-criteria-en)
+5. [Step-by-Step Source Lifecycle](#5-step-by-step-source-lifecycle-en)
+6. [Code Generation (Bronze, dbt, DAGs)](#6-code-generation-bronze-dbt-dags-en)
+7. [Airflow Orchestration & Monitoring](#7-airflow-orchestration--monitoring-en)
+8. [Analytical Transformation & Producto OI](#8-analytical-transformation--producto-oi-en)
+9. [Troubleshooting](#9-troubleshooting-en)
+
+---
+
+### 1. General Architecture & Concept (EN)
+ScrapAgents adheres strictly to two architectural pillars:
+* **AI at Design-Time:** Autonomous agents discover portals, draft data contracts, and generate deterministic code.
+* **Zero AI at Run-Time:** Extractors, DAGs, and SQL models run 100% deterministically with no LLM inference.
+
+#### Area Documentation
+* 🤖 [**Area 1: Agents & Skills**](docs/areas/1_agentes_y_skills/README.md)
+* 📊 [**Area 2: Data, Contracts & Modeling**](docs/areas/2_datos_y_contratos/README.md)
+* 🚀 [**Area 3: Extraction, Navigation & Runtime**](docs/areas/3_extraccion_y_runtime/README.md)
+* 🐳 [**Area 4: Orchestration, Containers & Infrastructure**](docs/areas/4_orquestacion_e_infraestructura/README.md)
+
+### 2. Prerequisites & Environment Setup (EN)
+* **Docker & Docker Compose** (v2.20+).
+* **Python 3.11+** (recommended `uv`).
+* **Rust 1.80+** (for building `source_runtime`).
+
+```bash
+uv venv --python 3.13 .venv
+source .venv/bin/activate
+uv pip install -e ".[dev,extractors,smoke]"
+make infra-env
+export OBSCURA_CDP_TOKEN="$(openssl rand -hex 32)"
+```
+
+### 3. Starting Local Infrastructure (EN)
+```bash
+make infra-up
+```
+* **Airflow Web UI:** [http://localhost:8080](http://localhost:8080)
+* **RustFS S3 Console:** [http://localhost:9001](http://localhost:9001) (`scrapagents` / `change-me-local-only`)
+* **PostgreSQL Warehouse:** `localhost:5433` (`scrapagents` / `change-me-local-only`)
+* **SourceRuntime (Rust):** `http://localhost:8088`
+* **Obscura CDP Browser:** `http://localhost:9222`
+
+To shut down services: `make infra-down`.
+
+### 4. Search Intent & Business Criteria (EN)
+Read [**Search Criteria and Business Context**](docs/contexto_de_busqueda_y_criterios.md):
+* ✅ **In-Scope:** R&D&I grants, academic scholarships, scientific awards, international procurement tenders.
+* ❌ **Out-of-Scope:** Office supplies (paper, toner), press releases, internal bureaucracy, login-gated portals.
+
+### 5. Step-by-Step Source Lifecycle (EN)
+```text
+Discovery ──> Assessment ──(H1)──> Blueprint ──(H2)──> Implementation ──> Verification ──(PR)
+```
+1. **Scaffold Dossier:** `make new-ingestion ID=my_source TEAM=sistemas_internos`
+2. **Discovery:** `make probe ID=my_source URL="https://portal.example.org/tenders"` then `make advance ID=my_source`.
+3. **Assessment & H1:** `make sign ID=my_source GATE=h1 BY="Your Name"` (or `make sentinel-sign` for green sources).
+4. **Blueprint & H2:** `make review ID=my_source` then `make sign ID=my_source GATE=h2 BY="Your Name"`.
+5. **Implementation:** Code extractor in `python/scrapagents/extractors/my_source/extractor.py`.
+
+### 6. Code Generation (Bronze, dbt, DAGs) (EN)
+```bash
+make generate-bronze && make bronze-apply
+make generate-dbt
+make generate-dags && make airflow-pools
+```
+
+### 7. Airflow Orchestration & Monitoring (EN)
+Navigate to [http://localhost:8080](http://localhost:8080) and toggle on `ingest__<id>`.
+
+### 8. Analytical Transformation & Producto OI (EN)
+```bash
+dbt build --select tag:source_my_source --project-dir dbt --profiles-dir dbt
+```
+
+### 9. Troubleshooting (EN)
+* **Connection refused 8088:** Run `make infra-up` and verify `scrapagents-source-runtime` is running.
+* **Timeout on 9222:** Ensure `OBSCURA_CDP_TOKEN` is set in `.env` (32+ chars) and `scrapagents-obscura` is healthy.
+* **Slow Scraping:** Set `max_listing_pages: 5` in config for daily runs and keep `block_static_resources: true`.
+* **Airflow missing pool:** Run `make airflow-pools`.

@@ -1,84 +1,78 @@
-# Docker Infrastructure & Container Architecture
+# Arquitectura Docker y Contenedores / Docker Container Architecture
 
-> **PRINCIPLE:** All core infrastructure services (Warehouse, Object Storage, Ingestion Runtime, Browser, and Orchestration) run under a **single unified `docker-compose.yml`** at the repository root, with explicit, deterministic container names (`container_name`).
-
----
-
-## 1. Overview & Architectural Shift
-
-Previously, infrastructure services were split across multiple sub-compose projects in `infra/` (`infra/warehouse`, `infra/ingestion`, `infra/orchestration`, `infra/transformation`). 
-
-To reduce network orchestration overhead and provide single-command provisioning, all services are consolidated into:
-* **Root Compose File:** [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml)
-* **Environment Configuration:** [`.env`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env) (copied from [`.env.example`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env.example) at repository root; automatically loaded by `docker compose` without needing `--env-file`)
-* **Network:** Unified bridge network `scrapagents_net`.
+[![Language: ES](https://img.shields.io/badge/Language-Espa%C3%B1ol-yellow.svg)](#español)
+[![Language: EN](https://img.shields.io/badge/Language-English-blue.svg)](#english)
 
 ---
 
-## 2. Container Inventory & Naming Convention
+## Español
 
-Every service specifies an explicit `container_name` to eliminate Docker Compose's non-deterministic numbering (`<project>-<service>-1`) and allow reliable CLI execution, automated health checks, and test runner scripting:
+> **PRINCIPIO:** Todos los servicios centrales de infraestructura (Warehouse, Almacenamiento de Objetos, Runtime de Ingesta, Navegador y Orquestación) se ejecutan bajo un **único archivo `docker-compose.yml`** en la raíz del repositorio, con nombres de contenedor explícitos y deterministas (`container_name`).
 
-| Service | Container Name (`container_name`) | Base Image / Build Context | Exposed Host Port | Role & Responsibility |
+### 1. Resumen y Arquitectura Unificada
+Todos los servicios se encuentran consolidados en:
+* **Archivo Compose Principal:** [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml)
+* **Variables de Entorno:** [`.env`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env) (copiado desde [`.env.example`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env.example))
+* **Red Compartida:** Red bridge `scrapagents_net`.
+
+### 2. Inventario de Contenedores
+
+| Servicio | Nombre Contenedor (`container_name`) | Imagen / Build | Puerto Host | Rol y Responsabilidad |
 | :--- | :--- | :--- | :---: | :--- |
-| **`postgres`** | `scrapagents-postgres` | `postgres:16` | `5433` | Data Warehouse: hosts typed `bronze` tables, quarantine schema, and analytical dbt targets. Initialized via `infra/warehouse/init.sql`. |
-| **`rustfs`** | `scrapagents-rustfs` | `rustfs/rustfs:1.0.4` | `9000` (S3), `9001` (UI) | Immutable S3 Landing Data Lake with Hive-style partitioning (`source=/dataset=/year=/...`). |
-| **`tika`** | `scrapagents-tika` | `apache/tika:4.1.0` | `9998` | Binary parser: extracts plain text from a PDF/DOCX that is already in RustFS. Reached only by `source-runtime`; the `.txt` is written back to Landing. |
-| **`source-runtime`** | `scrapagents-source-runtime` | Build: `rust/source_runtime` | `8088` | RustWorker: SHA-256, writes every payload to RustFS, calls Tika only for PDF/DOCX, then loads typed PostgreSQL `bronze` from the landed object. |
-| **`obscura`** | `scrapagents-obscura` | `h4ckf0r0day/obscura:0.2.6` | `9222` | Stealth headless browser written in Rust. Exposes CDP over WebSocket for anti-bot scraping and DOM exploration. |
-| **`airflow-db`** | `scrapagents-airflow-db` | `postgres:16` | Internal only | Metadata database for Apache Airflow. |
-| **`airflow-init`** | `scrapagents-airflow-init` | Build: `infra/orchestration/Dockerfile` | Ephemeral | Database migration runner and declarative pool importer (`_pools.json`). Terminates after execution. |
-| **`airflow-api-server`**| `scrapagents-airflow-api-server` | Build: `infra/orchestration/Dockerfile` | `8080` | Airflow 3.4.0 API server and Web UI. Runs `SimpleAuthManager` in local development. |
-| **`airflow-scheduler`** | `scrapagents-airflow-scheduler` | Build: `infra/orchestration/Dockerfile` | Internal only | Airflow LocalExecutor scheduler and task execution runner. |
-| **`airflow-dag-processor`**| `scrapagents-airflow-dag-processor`| Build: `infra/orchestration/Dockerfile` | Internal only | Parses declarative YAML DAGs via native AIP-85 YAML importer (`airflow.sdk.importers.yaml_importer`). |
-| **`dbt`** | `scrapagents-dbt` | Build: `infra/transformation/Dockerfile` | One-off CLI | dbt Core CLI tool container (`profile: [tools]`) used for catalog validation and model testing. |
+| **`postgres`** | `scrapagents-postgres` | `postgres:16` | `5433` | Data Warehouse: aloja tablas `bronze`, esquema de cuarentena y modelos dbt. |
+| **`rustfs`** | `scrapagents-rustfs` | `rustfs/rustfs:1.0.4` | `9000`, `9001` | Data Lake S3 Landing inmutable con particionamiento Hive. |
+| **`tika`** | `scrapagents-tika` | `apache/tika:4.1.0` | `9998` | Parser binario: extrae texto de PDFs y DOCXs ya almacenados en RustFS. |
+| **`source-runtime`** | `scrapagents-source-runtime` | Build: `rust/source_runtime` | `8088` | RustWorker: calcula SHA-256, escribe a RustFS y carga filas a Bronze. |
+| **`obscura`** | `scrapagents-obscura` | `h4ckf0r0day/obscura:0.2.6` | `9222` | Navegador headless en Rust sobre CDP para scraping sigiloso. |
+| **`airflow-db`** | `scrapagents-airflow-db` | `postgres:16` | Interno | Base de datos de metadatos de Apache Airflow. |
+| **`airflow-init`** | `scrapagents-airflow-init` | Build: `infra/orchestration/Dockerfile` | Efímero | Migraciones de base de datos e importación de pools (`_pools.json`). |
+| **`airflow-api-server`**| `scrapagents-airflow-api-server` | Build: `infra/orchestration/Dockerfile` | `8080` | Servidor API y Web UI de Airflow 3.4.0. |
+| **`airflow-scheduler`** | `scrapagents-airflow-scheduler` | Build: `infra/orchestration/Dockerfile` | Interno | Planificador y ejecutor LocalExecutor de Airflow. |
+| **`airflow-dag-processor`**| `scrapagents-airflow-dag-processor`| Build: `infra/orchestration/Dockerfile` | Interno | Procesador declarativo de DAGs YAML (AIP-85). |
 
----
+### 3. Volúmenes y Red
+* **Red:** `scrapagents_net`
+* **Volúmenes persistentes:** `postgres_data`, `rustfs_data`, `airflow_db`, `airflow_logs`.
 
-## 3. Storage Volumes & Network
-
-### Shared Network
-* **`scrapagents_net`**: Pre-declared bridge network. All services communicate over internal DNS hostnames (`postgres`, `rustfs`, `tika`, `source-runtime`, `obscura`, `airflow-db`, `airflow-api-server`).
-
-### Persistent Volumes
-* `postgres_data`: PostgreSQL warehouse data directory (`/var/lib/postgresql/data`).
-* `rustfs_data`: Raw S3 Landing data lake objects (`/data`).
-* `airflow_db`: Airflow metadata PostgreSQL data directory.
-* `airflow_logs`: Shared task execution logs across scheduler, api-server, and dag-processor (`/opt/airflow/logs`).
-
----
-
-## 4. Operational Commands (Lifecycle)
-
-The unified container setup is fully wired into the [`Makefile`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/Makefile):
-
+### 4. Comandos de Operación
 ```bash
-# Bring up the entire local infrastructure with a single command:
-make infra-up
-
-# Alternatively, using docker compose directly (automatically picks up .env and docker-compose.yml):
-docker compose up -d --build
-
-# Inspect the configuration and validate variable interpolation:
-make infra-config
-
-# Execute dbt commands inside the tools container:
-make dbt CMD="build --select tag:source_fixture"
-
-# Tear down the entire platform and clean orphan containers:
-make infra-down
+make infra-up      # Levantar toda la infraestructura
+make infra-down    # Detener y desmontar contenedores
 ```
 
 ---
 
-## 5. Architecture Summary
+## English
 
-| Feature | ScrapAgents (`docker-compose.yml`) |
-| :--- | :--- |
-| **Compose Topology** | Single primary Compose file at repository root |
-| **Container Naming** | Explicit `container_name: scrapagents-<svc>` |
-| **Warehouse** | PostgreSQL 16 (`scrapagents-postgres`) |
-| **Airflow Architecture**| Airflow 3.4.0 with native YAML DAG importer (AIP-85) |
-| **Object Storage** | RustFS S3 (`scrapagents-rustfs`) |
-| **Ingestion Engine** | Native Rust binary `source-runtime` (RustWorker) |
-| **Browser Layer** | Obscura Rust headless browser over CDP (`scrapagents-obscura`) |
+> **PRINCIPLE:** All core infrastructure services (Warehouse, Object Storage, Ingestion Runtime, Browser, and Orchestration) run under a **single unified `docker-compose.yml`** at the repository root, with explicit, deterministic container names (`container_name`).
+
+### 1. Overview & Architectural Shift
+All services are consolidated into:
+* **Root Compose File:** [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml)
+* **Environment Configuration:** [`.env`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env) (copied from [`.env.example`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env.example))
+* **Network:** Unified bridge network `scrapagents_net`.
+
+### 2. Container Inventory & Naming Convention
+
+| Service | Container Name (`container_name`) | Base Image / Build Context | Exposed Host Port | Role & Responsibility |
+| :--- | :--- | :--- | :---: | :--- |
+| **`postgres`** | `scrapagents-postgres` | `postgres:16` | `5433` | Data Warehouse: hosts typed `bronze` tables, quarantine schema, and analytical dbt targets. |
+| **`rustfs`** | `scrapagents-rustfs` | `rustfs/rustfs:1.0.4` | `9000` (S3), `9001` (UI) | Immutable S3 Landing Data Lake with Hive-style partitioning. |
+| **`tika`** | `scrapagents-tika` | `apache/tika:4.1.0` | `9998` | Binary parser: extracts plain text from a PDF/DOCX already in RustFS. |
+| **`source-runtime`** | `scrapagents-source-runtime` | Build: `rust/source_runtime` | `8088` | RustWorker: computes SHA-256, writes payloads to RustFS, loads typed `bronze`. |
+| **`obscura`** | `scrapagents-obscura` | `h4ckf0r0day/obscura:0.2.6` | `9222` | Stealth headless browser in Rust exposing CDP over WebSocket. |
+| **`airflow-db`** | `scrapagents-airflow-db` | `postgres:16` | Internal only | Metadata database for Apache Airflow. |
+| **`airflow-init`** | `scrapagents-airflow-init` | Build: `infra/orchestration/Dockerfile` | Ephemeral | Database migration runner and declarative pool importer. |
+| **`airflow-api-server`**| `scrapagents-airflow-api-server` | Build: `infra/orchestration/Dockerfile` | `8080` | Airflow 3.4.0 API server and Web UI. |
+| **`airflow-scheduler`** | `scrapagents-airflow-scheduler` | Build: `infra/orchestration/Dockerfile` | Internal only | Airflow LocalExecutor scheduler and task runner. |
+| **`airflow-dag-processor`**| `scrapagents-airflow-dag-processor`| Build: `infra/orchestration/Dockerfile` | Internal only | Declarative YAML DAG processor (AIP-85). |
+
+### 3. Storage Volumes & Network
+* **Network:** `scrapagents_net`
+* **Persistent Volumes:** `postgres_data`, `rustfs_data`, `airflow_db`, `airflow_logs`.
+
+### 4. Operational Commands (Lifecycle)
+```bash
+make infra-up      # Start all local infrastructure
+make infra-down    # Stop and tear down all services
+```
