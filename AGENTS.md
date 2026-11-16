@@ -59,9 +59,11 @@ Every new institutional ingestion pipeline is built autonomously through a 5-pha
 ### Gates (operational rules)
 | Gate | Between | Evidence required | Who signs |
 | :--- | :--- | :--- | :--- |
-| **H1** | Assessment -> Blueprint | `ingestions/<id>/assessment.md` (legal/ToS, anti-bot, volume, refresh analysis) | Human owner |
+| **H1** | Assessment -> Blueprint | `ingestions/<id>/assessment.md` (legal/ToS, anti-bot, volume, refresh analysis, aligned with `docs/contexto_de_busqueda_y_criterios.md`) | Human owner |
 | **H2** | Blueprint -> Implement | `ingestions/<id>/blueprint.yml` + draft contract (schema, quality rules, `configs/ingestions/<id>.yml` draft) | Human owner + arch-reviewer |
 | **PR** | Verify -> merge | `make validate` green (lint, tests, gates, contracts, generated files current), reviewer approval | Human reviewer |
+
+Agents must strictly consult **`docs/contexto_de_busqueda_y_criterios.md`** as the single canonical guide for search intent, required opportunity attributes, and out-of-scope exclusions during Discovery, Assessment, and Blueprint.
 
 Agents and their commands: `source-scout` (`make probe`), `source-assessor`, `silver-designer`, `arch-reviewer` (`make review`), `gate-sentinel` (`make sentinel` / `make sentinel-sign`), coordinated by the `new-source` skill; `make status` shows where a source stands and `make advance` moves its phase. Humans run `make authorize-lane` (Macro-H1) and `make sign` (PR / yellow path); see `docs/implementation-plan.md` F5 and `docs/producto-oi-value-review.md`.
 

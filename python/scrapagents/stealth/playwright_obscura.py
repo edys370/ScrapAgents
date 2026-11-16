@@ -10,10 +10,14 @@ from scrapagents.stealth.base import ObscuraConfig, PageSnapshot
 
 logger = logging.getLogger(__name__)
 
-# Images, stylesheets and fonts. The HTML the extractors parse does not need them, and a
-# truncated asset download is a common way gov.cn closes the connection mid-body.
-_STATIC_TYPES = frozenset({"image", "stylesheet", "font"})
-_STATIC_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".css", ".woff", ".woff2")
+# Images, stylesheets, fonts and media. The HTML the extractors parse does not need them, and
+# blocking them dramatically accelerates scraping speed while preventing connection drops.
+_STATIC_TYPES = frozenset({"image", "stylesheet", "font", "media"})
+_STATIC_SUFFIXES = (
+    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico",
+    ".css", ".woff", ".woff2", ".ttf", ".eot",
+    ".mp4", ".mp3", ".webm", ".avi"
+)
 
 CAPTCHA_MARKERS = (
     "g-recaptcha",
@@ -81,16 +85,20 @@ class PlaywrightObscuraRouter:
     local Chromium is launched instead.
     """
 
-    def __init__(self, config: ObscuraConfig | None = None) -> None:
+    def __init__(self, config: ObscuraConfig | None = None, *, block_static: bool = True) -> None:
         self._config = config or ObscuraConfig.from_env()
         self._playwright: Any = None
         self._browser: Any = None
         self._context: Any = None
-        self._block_static = False
+        self._block_static = block_static
 
     def enable_static_blocking(self) -> None:
-        """Abort images, stylesheets and fonts on later ``fetch`` calls."""
+        """Abort images, stylesheets, fonts and media on later ``fetch`` calls."""
         self._block_static = True
+
+    def disable_static_blocking(self) -> None:
+        """Allow static assets if a site requires CSS/fonts for rendering."""
+        self._block_static = False
 
     def _start(self) -> Any:
         if self._context is not None:

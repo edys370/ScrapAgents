@@ -27,12 +27,12 @@ DATASET = "funding_opportunities"
 DEFAULT_USER_AGENT = "ScrapAgents-ingest-most/0.1 (research; non-commercial)"
 DEFAULT_SITE = "https://service.most.gov.cn"
 DEFAULT_LISTING_BASE = "/kjjh_tztg/"
-DEFAULT_TIMEOUT_SECONDS = 90.0
-DEFAULT_MAX_ATTEMPTS = 4
-DEFAULT_BACKOFF_SECONDS = 2.0
-DEFAULT_BACKOFF_CAP_SECONDS = 32.0
-DEFAULT_PAUSE_MIN_SECONDS = 3.0
-DEFAULT_PAUSE_MAX_SECONDS = 7.0
+DEFAULT_TIMEOUT_SECONDS = 45.0
+DEFAULT_MAX_ATTEMPTS = 3
+DEFAULT_BACKOFF_SECONDS = 1.5
+DEFAULT_BACKOFF_CAP_SECONDS = 15.0
+DEFAULT_PAUSE_MIN_SECONDS = 1.0
+DEFAULT_PAUSE_MAX_SECONDS = 2.5
 # Gateway and rate-limit answers are retried. A captcha or WAF page is not.
 RETRYABLE_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 _TRANSIENT_MARKERS = (
@@ -268,6 +268,7 @@ def run(
     *,
     acquisition: dict[str, Any],
     ingest_date: str,
+    max_pages: int | None = None,
     sleep: Callable[[float], None] = time.sleep,
     uniform: Callable[[float, float], float] = random.uniform,
 ) -> int:
@@ -359,7 +360,13 @@ def run(
         raise RuntimeError(f"{first_url} returned an empty page.")
     footer = parse_listing_footer(first_html)
     total_pages = footer[2] if footer else 1
-    logger.info("MOST listing footer: %s → %s pages", footer, total_pages)
+    cfg_limit = acquisition.get("max_listing_pages")
+    page_limit = max_pages if max_pages is not None else cfg_limit
+    if page_limit and int(page_limit) > 0:
+        total_pages = min(total_pages, int(page_limit))
+        logger.info("MOST listing limited to %s recent pages (max_listing_pages)", total_pages)
+    else:
+        logger.info("MOST listing footer: %s → %s pages", footer, total_pages)
 
     listings: list[dict[str, Any]] = parse_listing_rows(
         first_html, listing_url=first_url, site=site
@@ -426,6 +433,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--runtime-url", default=os.environ.get("RUNTIME_URL", "http://127.0.0.1:8088")
     )
+    parser.add_argument(
+        "--max-listing-pages",
+        type=int,
+        default=None,
+        help="maximum listing pages to scan (overrides acquisition config)",
+    )
+    parser.add_argument(
+        "--full-history",
+        action="store_true",
+        help="scan all listing pages (disables max_listing_pages limit)",
+    )
     args = parser.parse_args(argv)
     if args.dataset != DATASET:
         print(f"error: unsupported most dataset {args.dataset!r}", file=sys.stderr)
@@ -440,6 +458,8 @@ def main(argv: list[str] | None = None) -> int:
     user_agent = obscura.user_agent or DEFAULT_USER_AGENT
     obscura = ObscuraConfig(obscura.cdp_url, obscura.cdp_token, user_agent)
 
+    effective_pages = 0 if args.full_history else args.max_listing_pages
+
     with PlaywrightObscuraRouter(obscura) as router:
         try:
             runtime_client = HttpRuntimeClient(args.runtime_url)
@@ -448,6 +468,7 @@ def main(argv: list[str] | None = None) -> int:
                 runtime_client,
                 acquisition=config.get("acquisition", {}),
                 ingest_date=args.ingest_date or today_utc(),
+                max_pages=effective_pages,
             )
             print(f"most: ingested {count} records into dataset {DATASET}")
         except (RuntimeIngestError, OSError) as exc:
