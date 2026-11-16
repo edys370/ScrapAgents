@@ -22,3 +22,14 @@ infra/.env
 
 # Generated for local checks
 build/
+
+# Source design-time dossiers (local agent scraping analyses)
+ingestions/*
+!ingestions/_fixture/
+!ingestions/_fixture/**
+!ingestions/_lanes/
+!ingestions/_lanes/**
+!ingestions/_template/
+!ingestions/_template/**
+!ingestions/.gitkeep
+
