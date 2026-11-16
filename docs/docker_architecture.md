@@ -1,6 +1,5 @@
 # Docker Infrastructure & Container Architecture
 
-> **REFERENCE:** Modelled after CEDIA Data Platform (`deploy/local/docker-compose.yml`).
 > **PRINCIPLE:** All core infrastructure services (Warehouse, Object Storage, Ingestion Runtime, Browser, and Orchestration) run under a **single unified `docker-compose.yml`** at the repository root, with explicit, deterministic container names (`container_name`).
 
 ---
@@ -9,7 +8,7 @@
 
 Previously, infrastructure services were split across multiple sub-compose projects in `infra/` (`infra/warehouse`, `infra/ingestion`, `infra/orchestration`, `infra/transformation`). 
 
-To align with the CEDIA data platform architecture, reduce network orchestration overhead, and provide single-command provisioning, all services are now consolidated into:
+To reduce network orchestration overhead and provide single-command provisioning, all services are consolidated into:
 * **Root Compose File:** [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml)
 * **Environment Configuration:** [`.env`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env) (copied from [`.env.example`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/.env.example) at repository root; automatically loaded by `docker compose` without needing `--env-file`)
 * **Network:** Unified bridge network `scrapagents_net`.
@@ -72,14 +71,14 @@ make infra-down
 
 ---
 
-## 5. Alignment with CEDIA Platform
+## 5. Architecture Summary
 
-| Feature | CEDIA (`deploy/local/docker-compose.yml`) | ScrapAgents (`docker-compose.yml`) |
-| :--- | :--- | :--- |
-| **Compose Topology** | Single primary Compose file for core services | Single primary Compose file at repository root |
-| **Container Naming** | Explicit `container_name: data_platform_<svc>` | Explicit `container_name: scrapagents-<svc>` |
-| **Warehouse** | PostgreSQL (`data_platform_postgres`) | PostgreSQL 16 (`scrapagents-postgres`) |
-| **Airflow Architecture**| Airflow 3 (API server, scheduler, dag-processor, init)| Airflow 3.4.0 with native YAML DAG importer (AIP-85) |
-| **Object Storage** | MinIO (`data_platform_minio`) | RustFS S3 (`scrapagents-rustfs`) |
-| **Ingestion Engine** | Python `SourceRuntime` container | Native Rust binary `source-runtime` (RustWorker) |
-| **Browser Layer** | Local Chromium / Docker daemon | Obscura Rust headless browser over CDP (`scrapagents-obscura`) |
+| Feature | ScrapAgents (`docker-compose.yml`) |
+| :--- | :--- |
+| **Compose Topology** | Single primary Compose file at repository root |
+| **Container Naming** | Explicit `container_name: scrapagents-<svc>` |
+| **Warehouse** | PostgreSQL 16 (`scrapagents-postgres`) |
+| **Airflow Architecture**| Airflow 3.4.0 with native YAML DAG importer (AIP-85) |
+| **Object Storage** | RustFS S3 (`scrapagents-rustfs`) |
+| **Ingestion Engine** | Native Rust binary `source-runtime` (RustWorker) |
+| **Browser Layer** | Obscura Rust headless browser over CDP (`scrapagents-obscura`) |

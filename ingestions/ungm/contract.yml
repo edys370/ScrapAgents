@@ -1,6 +1,6 @@
 # Draft contract: ungm / notices
-# Becomes configs/contracts/ungm/notices.yml in the CEDIA repository.
-# Rules: vendor/cedia/scripts/validation/check_contracts.py (mirrored by scrapagents.contracts).
+# Becomes configs/contracts/ungm/notices.yml.
+# Rules: scrapagents.contracts.
 source_system: ungm
 dataset: notices
 description: TODO what this dataset delivers.

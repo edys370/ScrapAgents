@@ -1,8 +1,7 @@
 # ScrapAgents
 
-Design-time harness and deterministic run-time for the Producto OI data platform. It runs entirely on this machine and is independent of CEDIA. Architecture and rules: [AGENTS.md](AGENTS.md).
-Plan by phase: [docs/implementation-plan.md](docs/implementation-plan.md). Notes on how it differs from CEDIA (reference only):
-[docs/cedia-alignment.md](docs/cedia-alignment.md).
+Design-time harness and deterministic run-time for the Producto OI data platform. Architecture and rules: [AGENTS.md](AGENTS.md).
+Plan by phase: [docs/implementation-plan.md](docs/implementation-plan.md).
 
 ```bash
 uv venv --python 3.13 .venv && uv pip install --python .venv/bin/python -e ".[dev,extractors]"

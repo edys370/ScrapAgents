@@ -25,7 +25,7 @@ ASSESSMENT_FIELDS = (
     "Legal / ToS risk",
     "Anti-bot risk and mitigation",
     "Personal data",
-    "Duplicates an existing CEDIA source",
+    "Duplicates an existing source",
     "Full scope per run or incremental",
     "Proposed schedule and why",
     "Decision",
@@ -84,7 +84,7 @@ def payload_formats(text: str) -> set[str]:
 def assessment_issues(text: str) -> list[str]:
     issues = _missing_fields(text, ASSESSMENT_FIELDS, "assessment.md")
     found = bullets(text)
-    for field in ("Personal data", "Duplicates an existing CEDIA source"):
+    for field in ("Personal data", "Duplicates an existing source"):
         value = lookup(found, field)
         if is_filled(value) and not value.lower().startswith(("yes", "no")):
             issues.append(f"assessment.md: '{field}' must start with yes or no")

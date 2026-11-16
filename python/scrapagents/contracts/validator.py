@@ -1,8 +1,7 @@
 """Validate a data contract against this project's own rules.
 
 The rules (allowed column types, classification, purpose for personal data, owner pattern) are the
-project's; they were modelled on the conventions of CEDIA's data platform, used as a reference
-only. ``python/tests/test_contracts.py`` pins them.
+project's standards. ``python/tests/test_contracts.py`` pins them.
 """
 
 from __future__ import annotations

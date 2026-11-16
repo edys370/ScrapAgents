@@ -1,4 +1,4 @@
-//! Typed bronze: one table per dataset, `bronze.<source>__<dataset>`, the shape CEDIA uses.
+//! Typed bronze: one table per dataset, `bronze.<source>__<dataset>`.
 //!
 //! Which datasets have a table, and which columns form their key, is decided at design time and
 //! written to `bronze/registry.json` by `scrapagents generate-bronze` (from the data contracts).
@@ -159,8 +159,8 @@ fn records(doc: &Value) -> Vec<&Value> {
     }
 }
 
-/// Rows of a payload for a dataset. Any invalid record rejects the whole payload (CEDIA's default,
-/// `max_reject_percentage: 0`): the bytes stay in Landing and the payload goes to quarantine.
+/// Rows of a payload for a dataset. Any invalid record rejects the whole payload
+/// (`max_reject_percentage: 0`): the bytes stay in Landing and the payload goes to quarantine.
 pub fn extract_rows(spec: &DatasetSpec, doc: &Value) -> Result<Vec<Row>, String> {
     if !matches!(doc, Value::Array(_) | Value::Object(_)) {
         return Err("payload is not a JSON array or object of records".into());

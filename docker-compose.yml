@@ -1,6 +1,6 @@
 # ScrapAgents Unified Local Infrastructure (Single Docker Compose)
 # Consolidates Warehouse, Ingestion, Orchestration, and Transformation into a single Compose project.
-# Every service specifies an explicit `container_name` following the CEDIA data platform pattern.
+# Every service specifies an explicit `container_name`.
 name: scrapagents
 
 x-airflow-env: &airflow-env

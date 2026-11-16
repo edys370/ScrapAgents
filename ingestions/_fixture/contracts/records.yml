@@ -1,5 +1,4 @@
-# Contract of the harness-only fixture source (not a CEDIA contract). Same schema as CEDIA's
-# configs/contracts/<source>/<dataset>.yml, validated by `make check-contracts`.
+# Contract of the harness-only fixture source, validated by `make check-contracts`.
 # The generated dbt models read each column from the payload key of the same name.
 source_system: fixture
 dataset: records

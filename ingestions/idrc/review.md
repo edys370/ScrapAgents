@@ -14,24 +14,21 @@ Result: pass
 Final re-confirmation 2026-11-09 by `arch-reviewer`, on the files bound by the digest above (`blueprint.yml`,
 `contract.yml`, `assessment.md`), after `silver-designer` addressed the three changes of the previous round.
 Mechanical result: pass, no errors, no warnings (`make review ID=idrc` re-run for this round).
-Not verified: nothing was run against CEDIA's real `make validate` / `make new-ingestion` (Phase 4); no probe
+Not verified: no probe
 through a real Obscura (assessment C2 still open); the local RustWorker has no change-only persistence
 (`_change_type`, tombstones, delete guard) and no side-object endpoint (the blueprint states this gap);
 per-bucket / per-role access control of Landing was not checked. The mechanical check does not read
-`acquisition.raw_landing`, so the raw-landing items were judged by hand against what I verified in
-`vendor/cedia` in the previous round (`check_ingestion_configs.py`, SIA / Simpler.Grants side objects,
-`retention.py`).
+`acquisition.raw_landing`, so the raw-landing items were judged by hand.
 
 ### Previous changes: status
-1. Raw payloads declared as something CEDIA accepts: **closed.** `acquisition.raw_landing.mode: side_objects`
+1. Raw payloads declared: **closed.** `acquisition.raw_landing.mode: side_objects`
    under the batch prefix of `datasets.funding_opportunities`; no second dataset; payloads `rss_xml`,
    `listing_html`, `detail_html`; `tika: never`. The blueprint explicitly says a second dataset would need a
    contract and a bronze table, so none is declared. The lineage comment and the stream description (step 4)
    say the same. A repo-wide search finds no leftover reference to `funding_opportunities_raw` in the design
    artifacts. One dataset, one acquisition path, one lineage node.
 2. Retention of the raw copy: **closed.** `retention: 30 days`, "inherited from the contract flag"
-   (`personal_data: true`), and the prose says side objects inherit the 30-day personal-data period. This is
-   the mechanism CEDIA applies per batch, so the raw bytes are not kept 90 days.
+   (`personal_data: true`), and the prose says side objects inherit the 30-day personal-data period.
 3. Personal-data wording and delete-guard thresholds: **closed.** Blueprint and contract header now say the raw
    RSS keeps `dc:creator` and the raw HTML keeps `field-award-poc` plus any staff names, titles and emails in
    the page body. The `max_delete_percentage` comment states 7 to 13 keys (one retirement passes, two stop),
@@ -50,8 +47,7 @@ per-bucket / per-role access control of Landing was not checked. The mechanical 
   `not_extracted` with reasons; raw Landing is the only place with the unredacted text and holds it for 30
   days. Plausible for LOPDP and inside the H1 envelope (H1: no exposure in Staging or Producto OI). Pass.
 - Invariant 1, Zero AI at run-time: pass.
-- Invariant 2, Single source of contracts: pass now. The raw copy no longer needs a harness-only dataset;
-  `acquisition:` remains a harness block that will not enter the CEDIA file, which is expected.
+- Invariant 2, Single source of contracts: pass now.
 - Invariant 3, Obscura: pass on design. Concern carried over: C2 (re-probe through Obscura) must close
   before Implement.
 - Invariant 4, Stream-to-Rust: pass. xml/html/JSON never touch Tika; `binary_to_tika: [pdf]` stays a declared
@@ -64,14 +60,12 @@ per-bucket / per-role access control of Landing was not checked. The mechanical 
 - R2: test email redaction on every sampled page; assert no `@` survives in a typed record.
 - R3: re-run the probes through Obscura (C2) before the first extraction.
 - R4: decide Silver tombstone handling in Phase 4 (`flag`, not drop).
-- R5: the CEDIA `configs/ingestions/idrc.yml` must contain the phrase "Not scheduled on purpose: <reason>" for
-  `schedule: null` (`tests/common/test_ingestion_schedules.py`), or the CEDIA test fails.
+- R5: `schedule: null` requires a stated reason if not scheduled.
 - R6: test that rss_xml, listing_html and detail_html never reach Tika in RustWorker.
 - R7: stream `response.body()` as the original bytes (not `page.content()`); record content type and SHA-256
   in the batch manifest.
 - R8: confirm Landing read access is limited to platform roles before the first run (per bucket / role).
-- R9: side objects need CEDIA's `SourceRuntime` (`side_object_folder`, `write_immutable_object`); the local
-  RustWorker cannot land them yet. Plan this in Phase 4 as the blueprint says.
+- R9: plan side objects in Phase 4 as the blueprint says.
 
 ### Decisions that remain for the human at H2
 1. Accept that Landing holds personal data in full (staff names, titles, emails) for 30 days, with replay and

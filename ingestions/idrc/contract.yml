@@ -1,6 +1,6 @@
 # Draft contract: idrc / funding_opportunities
-# Becomes configs/contracts/idrc/funding_opportunities.yml in the CEDIA repository.
-# Rules: vendor/cedia/scripts/validation/check_contracts.py (mirrored by scrapagents.contracts).
+# Becomes configs/contracts/idrc/funding_opportunities.yml.
+# Rules: scrapagents.contracts.
 #
 # How a record is born (deterministic, no LLM): the extractor reads the RSS feed
 # /en/funding/rss.xml and the HTML listing /en/funding through scrapagents.stealth, parses each

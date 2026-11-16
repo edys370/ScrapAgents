@@ -11,7 +11,7 @@ This platform ingests, normalizes, and governs unstructured and structured data 
 
 ### Mandatory Architectural Invariants
 1. **Zero AI at Run-Time:** Never embed LLM calls, dynamic prompts, or non-deterministic agent logic inside production extractors, Airflow DAGs, or dbt models.
-2. **Single Source of Truth for Contracts:** All schemas, validation rules, and canonical mappings live in this repository (`configs/contracts/`, `configs/ingestions/`) and generate bronze, dbt and DAGs via YAML & Jinja templates. Never duplicate a contract elsewhere. CEDIA is a reference only, not a dependency.
+2. **Single Source of Truth for Contracts:** All schemas, validation rules, and canonical mappings live in this repository (`configs/contracts/`, `configs/ingestions/`) and generate bronze, dbt and DAGs via YAML & Jinja templates. Never duplicate a contract elsewhere.
 3. **Browser access through Obscura (`obscura.sh` + `playwright`):** `obscura.sh` is a headless browser written in Rust and built for AI agents; it is the *destination* of every browser session. All browser-based discovery probes (`source-scout`) and production web extractors requiring DOM navigation use `playwright`, but instead of opening a local Chromium on the extractor host, Playwright connects to Obscura over the Chrome DevTools Protocol (`connect_over_cdp`, endpoint `OBSCURA_CDP_URL`, bearer token `OBSCURA_CDP_TOKEN`). Using Obscura does not replace the legal review: a site's Terms of Service, `robots.txt` and any block (WAF, captcha) are recorded as findings for Gate H1.
 4. **Stream-to-Rust Integrity & Binary Triage (`SourceRuntime` / `RustWorker`):** Python extractors stream raw byte payloads to `RustWorker` / `SourceRuntime`. Every payload is written to **RustFS (S3 `Landing`)** first — structured documents (JSON, XML, HTML, CSV) and complex binaries (PDF, DOCX). Only PDF/DOCX then pass through Apache Tika; the extracted `.txt` is written back to RustFS beside the raw object. Typed PostgreSQL `bronze` rows are loaded by **reading that object back from RustFS**. JSON, XML, HTML and CSV never touch Tika.
 5. **Strict Human-in-the-Loop (HITL) Gates:** Humans own **Macro-H1** (batch risk-lane authorization via `make authorize-lane`), **Producto OI value review**, and **PR Merge** (`make sign GATE=pr`). Per-source **H1/H2** may be auto-signed by `gate-sentinel` only when the source is in the authorized green lane and deterministic rules pass 100% (`make sentinel` / `make sentinel-sign`). Yellow/red and exceptions stay human. Agents never sign PR and never edit `state.yml` by hand.
@@ -74,7 +74,7 @@ State lives in `ingestions/<id>/state.yml` (`phase`, `h1`, `h2`, `pr`). An agent
 
 ```text
 AGENTS.md / Contex.md   architecture context (this file is canonical for agents)
-docs/                   implementation plan, reference notes on CEDIA
+docs/                   implementation plan
 configs/contracts/      `<source>/<dataset>.yml`: the single source of contracts
 configs/ingestions/     `<id>.yml`: one declaration per source (datasets, acquisition, schedule, pool)
 python/scrapagents/     contract loader/validator, stealth interface, runtime client, scaffolding helpers
@@ -88,19 +88,13 @@ infra/<stack>/          one docker compose project per domain (warehouse, ingest
 .cursor/rules/          invariants and gates as always-applied rules
 ```
 
-## 5. CONTRACTS AND CEDIA (reference only)
-
-This project is independent of CEDIA: it runs entirely on this machine (RustFS for Landing, PostgreSQL
-for bronze, local Airflow) and does not link, vendor or deploy to CEDIA's repository
-(`sicedia/cedia-data-platform_prod`). Its conventions were used as a guide.
+## 5. CONTRACTS AND SCHEMAS
 
 * Contracts live in `configs/contracts/<source_system>/<dataset>.yml`; a source is declared once in
   `configs/ingestions/<id>.yml`. Allowed contract types: `string, integer, number, boolean, object,
   array, json, date, timestamp`; owner must be `data_team_<team>`. Rules: `scrapagents.contracts`.
 * Implementation (phase 4) happens here: `configs/`, an extractor package
   `python/scrapagents/extractors/<id>/`, then `make generate-bronze generate-dbt generate-dags`.
-* Optional reading, outside this repository: `../cedia-data-platform_prod-main/docs/ai/` and
-  `docs/architecture/`. Differences are tracked in `docs/cedia-alignment.md`; do not "fix" either side silently.
 
 ## 6. IMPLEMENTATION PHASES
 F1 Foundations (done) -> F2 Runtime core (done) -> F3 Airflow orchestration (done) -> F4 dbt / Producto OI (done) -> F5 Design-time agents (done) -> F6 Governance.

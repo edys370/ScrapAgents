@@ -59,7 +59,7 @@ def fill_assessment(
     answer(path, "Legal / ToS risk", "low: public data, ToS allow reuse")
     answer(path, "Anti-bot risk and mitigation", "none seen; Pool of 1 slot")
     answer(path, "Personal data", f"{personal}, none of the fields identify a person")
-    answer(path, "Duplicates an existing CEDIA source", "no, checked configs/ingestions")
+    answer(path, "Duplicates an existing source", "no, checked configs/ingestions")
     answer(path, "Full scope per run or incremental", "full scope per run")
     answer(path, "Proposed schedule and why", "weekly: the source changes weekly")
     answer(path, "Decision", decision)

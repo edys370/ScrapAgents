@@ -1,6 +1,6 @@
-# Harness-only source used by the F2/F3 smoke tests. It is NOT a CEDIA ingestion: it streams
+# Harness-only source used by the F2/F3 smoke tests: it streams
 # `python/tests/fixtures` through the RustWorker so Airflow -> runtime -> Landing/bronze/Tika
-# can be exercised end to end without any real institution. Same shape as a CEDIA config.
+# can be exercised end to end without any real institution.
 ingestion_id: fixture
 source_system: fixture
 source_type: file

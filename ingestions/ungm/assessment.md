@@ -7,12 +7,12 @@ Every `- Label:` line must be answered; `make status ID=ungm` lists what is miss
 - Legal / ToS risk:
 - Anti-bot risk and mitigation (obscura.sh):
 - Personal data (LOPDP):
-- Duplicates an existing CEDIA source?:
+- Duplicates an existing source?:
 <!-- Personal data and Duplicates: start the answer with `yes` or `no`, then explain.
-     Check vendor/cedia/configs/ingestions/ for duplicates. -->
+     Check configs/ingestions/ and configs/contracts/ for duplicates. -->
 
 ## Refresh analysis
-See `vendor/cedia/docs/ai/data_platform_pre_implementation_gate.md` (every run reads the full scope).
+See `docs/implementation-plan.md` (every run reads the full scope).
 - Full scope per run or incremental:
 - Proposed schedule and why:
 

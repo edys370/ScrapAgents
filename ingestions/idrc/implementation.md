@@ -1,6 +1,6 @@
 # Implementation notes: idrc (phase 4)
 
-Phase 4 runs in this repository, independent of CEDIA (everything stays on this machine:
+Phase 4 runs in this repository (everything stays on this machine:
 RustFS for Landing, PostgreSQL for bronze, local Airflow, Obscura in Docker).
 
 | Artifact | Location |
@@ -22,9 +22,6 @@ RustFS for Landing, PostgreSQL for bronze, local Airflow, Obscura in Docker).
    this prototype.
 3. **Commercial-use permission from IDRC:** still **pending** (human decision). Do not treat a
    successful technical run as legal clearance.
-4. **CEDIA clone remote:** `origin` was removed from the local reference clone
-   `../cedia-data-platform_prod` so nothing can be pushed there by accident. CEDIA remains a
-   reading guide only.
 
 ## How to run from Airflow (this Mac)
 

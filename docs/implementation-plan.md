@@ -34,11 +34,11 @@ flowchart LR
   - Strategic Point 2 (Producto OI value): `docs/producto-oi-value-review.md`.
   - `make check-contracts` also validates `ingestions/<id>/contracts/*.yml`.
 - Exit criterion (`python/tests/test_design_workflow.py`): a new source goes Discovery -> Implement with two human signatures recorded in `state.yml`, and every shortcut (skipping a gate, signing early, a stale review, an agent-like signer) is refused.
-- Limits, stated honestly: the `sign` guard is a brake against an agent signing by mistake, not a security boundary (a person can edit `state.yml`; CI cannot tell who typed it, only that `make check-gates` passes); Cursor does not document `tools:` for subagents, so the real restrictions are code, not prompt permissions; `make advance` checks the implement phase only by existence (config, valid contracts, extractor package); verify is run by a human who then signs the PR gate; probes have not been run through a real Obscura instance yet (only `OBSCURA_CDP_URL` is assumed: no Obscura container is defined in `infra/` until its image is confirmed); `landing_format: jsonl` (used by some CEDIA datasets) is rejected because the RustWorker loads JSON only.
+- Limits, stated honestly: the `sign` guard is a brake against an agent signing by mistake, not a security boundary (a person can edit `state.yml`; CI cannot tell who typed it, only that `make check-gates` passes); Cursor does not document `tools:` for subagents, so the real restrictions are code, not prompt permissions; `make advance` checks the implement phase only by existence (config, valid contracts, extractor package); verify is run by a human who then signs the PR gate; probes have not been run through a real Obscura instance yet (only `OBSCURA_CDP_URL` is assumed: no Obscura container is defined in `infra/` until its image is confirmed); `landing_format: jsonl` is rejected because the RustWorker loads JSON only.
 
 ## F4 deliverables
 
-- **Typed bronze** (shape modelled on CEDIA's): one table per dataset, `bronze.<source_system>__<dataset>`, with the key columns (TEXT), `payload` (JSONB) and `_ingested_at`, `_batch_id`, `_landing_uri`, `_record_hash`; primary key `(keys, _batch_id)`.
+- **Typed bronze**: one table per dataset, `bronze.<source_system>__<dataset>`, with the key columns (TEXT), `payload` (JSONB) and `_ingested_at`, `_batch_id`, `_landing_uri`, `_record_hash`; primary key `(keys, _batch_id)`.
   - `scrapagents generate-bronze` (`make generate-bronze`, `make check-bronze`) generates `bronze/tables.sql` (idempotent DDL, applied by `make bronze-apply` and by `make infra-up`) and `bronze/registry.json` (which datasets have a table and which columns are the key) from the contracts. The key is the contract's `primary_key`.
   - The RustWorker reads the registry at start-up (`BRONZE_REGISTRY`). It writes the raw payload to RustFS, reads that object back, and only then splits a JSON document (array, `{"records": [...]}` or one object) of a registered dataset into records and loads them in one atomic statement. The batch is the payload: `_batch_id` is derived from its SHA-256, so replays insert nothing. A record without its key or a duplicate key rejects the whole payload to quarantine (`max_reject_percentage: 0`); the bytes stay in Landing.
   - JSON of an unregistered dataset, and CSV/HTML/XML, are landed in RustFS but not loaded into a table (the receipt has `bronze_table: null`). `bronze.raw_records` no longer exists.
@@ -99,7 +99,7 @@ Each ingestion config (one institution) becomes its own DAG `ingest__<id>`; the 
 
 ## F1 deliverables
 
-- `configs/contracts`, `configs/ingestions`: the contracts and source declarations of this repository (no CEDIA submodule).
+- `configs/contracts`, `configs/ingestions`: the contracts and source declarations of this repository.
 - `python/scrapagents`: `contracts` (load and validate contracts), `stealth` (`StealthRouter`),
   `runtime_client` (byte streaming interface to the RustWorker), `dossier` (state machine and gate checks).
 - `ingestions/_template` and `scripts/new_ingestion.py`: design-time dossier per source.
@@ -109,7 +109,6 @@ Each ingestion config (one institution) becomes its own DAG `ingest__<id>`; the 
 
 ## Open items (need a human decision)
 
-- Differences with CEDIA (reference only): see `docs/cedia-alignment.md`.
 - Obscura (`obscura.sh`) is a headless browser in Rust; Playwright connects to it over CDP (`OBSCURA_CDP_URL`).
   Confirmed 2026-11-09 with image `h4ckf0r0day/obscura:0.2.6`: CDP on port 9222, bearer token
   (`OBSCURA_CDP_TOKEN`, at least 32 bytes) required. Still to do: add an Obscura service to
@@ -118,9 +117,9 @@ Each ingestion config (one institution) becomes its own DAG `ingest__<id>`; the 
   inserts with `ON CONFLICT DO NOTHING`. Decide whether to implement it in the worker or in a dbt layer.
 - The extractor needs `playwright` and `beautifulsoup4` (`pip install .[extractors]`) in the image that runs it.
 
-## F7 deliverables (independence from CEDIA, first real source `idrc`)
+## F7 deliverables (first real source `idrc`)
 
-- `vendor/cedia` removed. Contracts and declarations live in `configs/`; CEDIA is only a reading guide.
+- Contracts and declarations live in `configs/`.
 - `idrc` implemented here: `configs/contracts/idrc/funding_opportunities.yml`, `configs/ingestions/idrc.yml`,
   `python/scrapagents/extractors/idrc/` (parser, polite fetcher through the Obscura router, extractor).
 - Raw bytes: landing-only dataset `funding_opportunities_raw` (original xml/html, never sent to Tika), instead of the

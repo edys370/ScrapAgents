@@ -83,7 +83,7 @@ flowchart TD
 
 ### 2.1 Nueva Arquitectura de Contenedores Unificada (`docker-compose.yml`)
 
-Siguiendo el patrón arquitectónico de la plataforma de datos de CEDIA (`deploy/local/docker-compose.yml`), todos los servicios locales están ahora consolidados en un **único archivo [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml)** en la raíz del proyecto. 
+Para simplificar la orquestación y reducir la complejidad, todos los servicios locales están consolidados en un **único archivo [`docker-compose.yml`](file:///Users/edissonmorocho/practicaspp/ScrapAgents/docker-compose.yml)** en la raíz del proyecto. 
 
 Cada servicio define un nombre de contenedor explícito y determinista (`container_name`), eliminando sufijos aleatorios y permitiendo una gestión limpia con un solo comando:
 
