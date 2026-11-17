@@ -51,20 +51,24 @@ def test_generated_dags_are_declarative_and_free_of_llm_sdks():
     """DAGs are YAML: every `uses:` is an allowed operator and no LLM SDK is mentioned."""
     import re
 
-    from scrapagents.dags import ALLOWED_OPERATORS
+    from scrapagents.dags import ALLOWED_OPERATORS, generate
 
-    dag_files = sorted((REPO_ROOT / "dags").glob("*.yml"))
-    assert dag_files, "expected generated DAGs in dags/"
-    for path in dag_files:
-        text = path.read_text(encoding="utf-8")
+    config_ids = sorted(p.stem for p in (REPO_ROOT / "configs" / "ingestions").glob("*.yml"))
+    fixture_config = REPO_ROOT / "ingestions" / "_fixture" / "ingestion.yml"
+
+    dags, errors = generate(config_ids, [fixture_config])
+    assert errors == []
+    assert dags, "expected generated DAGs"
+    for dag in dags:
+        text = dag.content
         used = set(re.findall(r"^\s*uses:\s*(\S+)", text, flags=re.MULTILINE))
-        assert used <= ALLOWED_OPERATORS, f"{path.name}: {used - ALLOWED_OPERATORS}"
+        assert used <= ALLOWED_OPERATORS, f"{dag.path.name}: {used - ALLOWED_OPERATORS}"
         mentioned = [
             bad
             for bad in FORBIDDEN
             if re.search(rf"(?<![\w.]){re.escape(bad)}(?![\w])", text.lower())
         ]
-        assert mentioned == [], f"{path.name} mentions {mentioned}"
+        assert mentioned == [], f"{dag.path.name} mentions {mentioned}"
 
 
 def test_dbt_project_is_free_of_llm_sdks():

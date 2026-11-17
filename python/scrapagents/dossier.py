@@ -20,8 +20,8 @@ from scrapagents.paths import INGESTIONS_DIR, REPO_ROOT, TEMPLATE_DIR
 
 PHASES = ("discovery", "assessment", "blueprint", "implement", "verify", "done")
 # gate -> index of the first phase that requires it to be approved
+# H1 and H2 are unified into a single gate at H2 (end of context / transition to implement)
 GATES = {
-    "h1": PHASES.index("blueprint"),
     "h2": PHASES.index("implement"),
     "pr": PHASES.index("done"),
 }
@@ -109,7 +109,7 @@ def check_state(state: dict[str, Any]) -> list[str]:
         return [f"phase '{phase}' must be one of: {', '.join(PHASES)}"]
     gates = state.get("gates")
     if not isinstance(gates, dict):
-        return ["gates must be a mapping with h1, h2 and pr"]
+        return ["gates must be a mapping with h2 and pr"]
     phase_index = PHASES.index(phase)
 
     for name, required_from in GATES.items():
@@ -183,7 +183,7 @@ def check_producto_oi(models_dir: Path | None = None, root: Path | None = None) 
         except (DossierError, yaml.YAMLError) as exc:
             errors.append(f"{where}: {exc}")
             continue
-        for name in ("h1", "h2"):
+        for name in ("h2",):  # Unified gate H2 covers the full design/context
             gate = gates.get(name) or {}
             signed = gate.get("status") == "approved" and str(gate.get("approved_by") or "").strip()
             if not signed:

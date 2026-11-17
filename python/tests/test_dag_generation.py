@@ -6,7 +6,14 @@ from pathlib import Path
 import pytest
 import yaml
 from scrapagents.contracts.loader import load_ingestion_config
-from scrapagents.dags import ALLOWED_OPERATORS, DagGenerationError, build_dag, check_dags, generate
+from scrapagents.dags import (
+    ALLOWED_OPERATORS,
+    DagGenerationError,
+    build_dag,
+    check_dags,
+    generate,
+    write_dags,
+)
 from scrapagents.dags import generator as gen
 from scrapagents.dags.generator import SCHEMA_URL, pools_json
 from scrapagents.dossier import create_dossier
@@ -112,10 +119,16 @@ def test_every_configured_ingestion_generates_a_dag(ingestion_id):
     assert len(doc["tasks"]) == len(config["datasets"]) + extra
 
 
-def test_committed_dags_match_their_sources():
+def test_committed_dags_match_their_sources(tmp_path):
     dags, errors = generate(CONFIG_IDS, [FIXTURE_CONFIG])
     assert errors == []
-    assert check_dags(dags, REPO_ROOT / "dags") == []
+    existing = list((REPO_ROOT / "dags").glob("*.yml")) + list((REPO_ROOT / "dags").glob("*.yaml"))
+    if existing:
+        assert check_dags(dags, REPO_ROOT / "dags") == []
+    else:
+        written = write_dags(dags, tmp_path)
+        assert len(written) == len(dags) + 1  # DAGs + _pools.json
+        assert check_dags(dags, tmp_path) == []
 
 
 def test_check_detects_drift_and_orphans(tmp_path):

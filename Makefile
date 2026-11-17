@@ -106,16 +106,16 @@ review:
 probe:
 	$(VPY) -m scrapagents.cli probe --id $(ID) $(foreach u,$(URL),--url $(u))
 
-# HUMAN ONLY, in your own terminal: make sign ID=<id> GATE=h1 BY="Your Name"
+# HUMAN ONLY, in your own terminal: make sign ID=<id> [GATE=h2] BY="Your Name"
 sign:
-	$(VPY) -m scrapagents.cli sign --id $(ID) --gate $(GATE) --by "$(BY)"
+	$(VPY) -m scrapagents.cli sign --id $(ID) --gate $(or $(GATE),h2) --by "$(BY)"
 
 sentinel:
 	$(VPY) -m scrapagents.cli sentinel --id $(ID)
 
-# Agents may run this for H1/H2 when Macro-H1 green lane + rules allow. Never for PR.
+# Agents may run this for H2 when Macro-H1 green lane + rules allow. Never for PR.
 sentinel-sign:
-	$(VPY) -m scrapagents.cli sentinel-sign --id $(ID) --gate $(GATE)
+	$(VPY) -m scrapagents.cli sentinel-sign --id $(ID) --gate $(or $(GATE),h2)
 
 # HUMAN ONLY Macro-H1: make authorize-lane LANE=green IDS="a b c" BY="Your Name"
 authorize-lane:

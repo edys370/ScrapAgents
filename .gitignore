@@ -1,3 +1,4 @@
+# Python virtual environments & bytecode
 .venv/
 __pycache__/
 *.pyc
@@ -6,8 +7,10 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+.coverage
+htmlcov/
 
-# Rust
+# Rust build artifacts
 rust/**/target/
 
 # Local secrets and environment
@@ -20,8 +23,9 @@ infra/.env
 .idea/
 .vscode/
 
-# Generated for local checks
-build/
+# Airflow generated DAGs and pools (local to each user/environment)
+dags/*
+!dags/.gitkeep
 
 # Source design-time dossiers (local agent scraping analyses)
 ingestions/*
@@ -33,3 +37,22 @@ ingestions/*
 !ingestions/_template/**
 !ingestions/.gitkeep
 
+# Probe caches and temporary scraper data
+**/.cache/
+probes/.cache/
+**/probes/.cache/
+
+# Local execution logs and runtime data
+logs/
+*.log
+airflow_logs/
+scratch/
+rustfs/
+data/
+*.db
+*.sqlite3
+
+# dbt local build artifacts
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/

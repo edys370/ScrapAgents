@@ -29,11 +29,12 @@ from scrapagents.paths import REPO_ROOT, config_root
 # ``gate-sentinel`` is allowed only via ``sentinel_sign`` (exact match).
 _AGENT_NAMES = re.compile(r"(claude|cursor|gpt|copilot|assistant|agent|bot\b|llm|codex)", re.I)
 # Phase that must be current for each gate to be signed.
-SIGN_PHASE = {"h1": "assessment", "h2": "blueprint", "pr": "verify"}
+# H1 and H2 are unified into a single gate evaluated when context finishes in blueprint.
+SIGN_PHASE = {"h1": "blueprint", "h2": "blueprint", "pr": "verify"}
 # phase -> (next phase, gate that must be signed first or None)
 TRANSITIONS = {
     "discovery": ("assessment", None),
-    "assessment": ("blueprint", "h1"),
+    "assessment": ("blueprint", None),
     "blueprint": ("implement", "h2"),
     "implement": ("verify", None),
     "verify": ("done", "pr"),
@@ -70,14 +71,14 @@ def evidence_blockers(dossier_dir: Path, phase: str) -> list[str]:
     if phase == "discovery":
         return evidence.discovery_issues(_read(dossier_dir, "discovery.md"))
     if phase == "assessment":
-        text = _read(dossier_dir, "assessment.md")
-        blockers = evidence.assessment_issues(text)
-        if evidence.decision(text) == "no-go":
-            blockers.append("assessment.md: the decision is no-go, so there is nothing to sign")
-        return blockers
+        # Intermediate validations removed; context is validated at H2
+        return []
     if phase == "implement":
         return implementation_blockers(dossier_dir.name)
     if phase == "blueprint":
+        text = _read(dossier_dir, "assessment.md")
+        if evidence.decision(text) == "no-go":
+            return ["assessment.md: the decision is no-go, so there is nothing to sign"]
         findings = review.review(dossier_dir)
         blockers = list(findings.errors)
         if not blockers and not review.review_is_current(dossier_dir):
@@ -152,20 +153,21 @@ def _set_phase(text: str, phase: str) -> str:
 
 
 def _set_gate(text: str, gate: str, by: str, today: str) -> str:
-    pattern = (
-        rf"(^  {gate}:\n    status: )\w+(\n    approved_by: )[^\n]*(\n    approved_at: )[^\n]*"
-    )
-    new, count = re.subn(
-        pattern,
-        lambda m: (
-            f"{m.group(1)}approved{m.group(2)}{json.dumps(by)}{m.group(3)}{json.dumps(today)}"
-        ),
-        text,
-        count=1,
-        flags=re.M,
-    )
-    if count != 1:
-        raise WorkflowError(f"state.yml has no standard block for gate {gate}")
+    gates_to_set = ["h1", "h2"] if gate in {"h1", "h2"} else [gate]
+    new = text
+    for g in gates_to_set:
+        pattern = (
+            rf"(^  {g}:\n    status: )\w+(\n    approved_by: )[^\n]*(\n    approved_at: )[^\n]*"
+        )
+        new = re.sub(
+            pattern,
+            lambda m: (
+                f"{m.group(1)}approved{m.group(2)}{json.dumps(by)}{m.group(3)}{json.dumps(today)}"
+            ),
+            new,
+            count=1,
+            flags=re.M,
+        )
     return new
 
 
@@ -216,10 +218,8 @@ def sentinel_sign(
             f"sentinel lane is {report.lane}, eligible_for_auto_sign="
             f"{report.eligible_for_auto_sign}; cannot auto-sign"
         )
-    if gate == "h1" and not all(r.lane == "green" for r in report.rules if r.gate == "h1"):
-        raise WorkflowError("H1 sentinel rules are not all green")
-    if gate == "h2" and not all(r.lane == "green" for r in report.rules):
-        raise WorkflowError("H2 sentinel rules are not all green")
+    if gate in {"h1", "h2"} and not all(r.lane == "green" for r in report.rules):
+        raise WorkflowError("Sentinel rules are not all green")
 
     lane = load_lane("green", root=lanes_root)
     via = f"{lane.get('authorized_by')} @ {lane.get('authorized_at')}"
@@ -231,14 +231,16 @@ def _apply_sign(
     dossier_dir: Path, gate: str, by: str, *, today: str | None = None
 ) -> None:
     state = load_dossier(dossier_dir).state
-    if state.get("phase") != SIGN_PHASE[gate]:
+    target_phases = ("assessment", "blueprint") if gate in {"h1", "h2"} else ("verify",)
+    if state.get("phase") not in target_phases:
+        expected = "blueprint" if gate in {"h1", "h2"} else "verify"
         raise WorkflowError(
-            f"gate {gate} is signed in phase {SIGN_PHASE[gate]!r}, not {state.get('phase')!r}"
+            f"gate {gate} is signed in phase {expected!r}, not {state.get('phase')!r}"
         )
     if _signed(state, gate):
         raise WorkflowError(f"gate {gate} is already signed")
     if gate != "pr":
-        blockers = evidence_blockers(dossier_dir, SIGN_PHASE[gate])
+        blockers = evidence_blockers(dossier_dir, state.get("phase"))
         if blockers:
             raise WorkflowError("the evidence is incomplete: " + "; ".join(blockers))
     stamp = today or datetime.date.today().isoformat()

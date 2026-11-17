@@ -30,9 +30,10 @@
 
 ### 3. Ciclo de Vida de Diseño (Agentes)
 ```text
-[1. Discovery] ──> [2. Assessment] ──(H1)──> [3. Blueprint] ──(H2)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
+[1. Discovery] ──> [2. Assessment] ──> [3. Blueprint] ──(H2 / Contexto)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
 ```
-Los agentes deben consultar obligatoriamente **`docs/contexto_de_busqueda_y_criterios.md`** como guía canónica de búsqueda, atributos requeridos y exclusiones.
+Las validaciones de H1 y H2 están unificadas en una única compuerta situada al finalizar el contexto (en H2, al final de Blueprint). Los agentes avanzan de Discovery a Blueprint sin interrupciones ni confirmaciones intermedias; se solicita una única confirmación al terminar el contexto.
+Los agentes deben consultar obligatoriamente **`Contex.md`** en la raíz del repositorio (y `docs/contexto_de_busqueda_y_criterios.md` como referencia) como guía canónica de búsqueda, atributos requeridos y exclusiones.
 
 ---
 
@@ -61,6 +62,7 @@ Los agentes deben consultar obligatoriamente **`docs/contexto_de_busqueda_y_crit
 
 ### 3. Design-Time Workflow (Agentic SDLC)
 ```text
-[1. Discovery] ──> [2. Assessment] ──(H1)──> [3. Blueprint] ──(H2)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
+[1. Discovery] ──> [2. Assessment] ──> [3. Blueprint] ──(H2 / Context)──> [4. Implement] ──> [5. Verify] ──> [PR Approved]
 ```
-Agents must strictly consult **`docs/contexto_de_busqueda_y_criterios.md`** as the single canonical guide for search intent, required attributes, and exclusions.
+Validations for H1 and H2 are unified into a single gate evaluated when context definition completes (at H2, end of Blueprint). No intermediate confirmations are prompted during Discovery or Assessment; only one confirmation is requested once the full context is established at H2.
+Agents must strictly consult **`Contex.md`** at the repository root (and `docs/contexto_de_busqueda_y_criterios.md` as reference) as the single canonical guide for search intent, required attributes, and exclusions.

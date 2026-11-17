@@ -1,32 +1,55 @@
-# Contexto del Proyecto y Especificación de Arquitectura / Project Context & Architecture Specification (`Contex.md`)
+# Contexto de Scraping y Negocio / Project Scraping Context (`Contex.md`)
 
-[![Language: ES](https://img.shields.io/badge/Language-Espa%C3%B1ol-yellow.svg)](#español)
-[![Language: EN](https://img.shields.io/badge/Language-English-blue.svg)](#english)
+<!--
+================================================================================
+INSTRUCCIONES PARA EL USUARIO / INSTRUCTIONS FOR USERS:
+================================================================================
+Este archivo sirve como la FUENTE CANÓNICA de contexto para tu proyecto de scraping.
+Cuando una persona clona este repositorio, debe ajustar este archivo definiendo qué 
+desea scrapear según sus propias necesidades y objetivos de negocio.
 
----
+Los agentes de diseño (source-scout, source-assessor, silver-designer) consultarán
+este documento para saber qué buscar, qué extraer y qué excluir al procesar cualquier
+enlace (URL) que les pases.
+================================================================================
+-->
 
-## Español
+## 1. Propósito de Negocio / Business Purpose
+<!--
+Describe el objetivo general de tu proyecto de scraping.
+Ejemplo: "Plataforma analítica para monitorear licitaciones públicas de tecnología en América Latina."
+-->
 
-> **AUDIENCIA OBJETIVO:** Agentes Autónomos de IA (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`).  
-> **PRINCIPIO FUNDAMENTAL:** La IA opera estrictamente en **Tiempo de Diseño (Design-Time)** para generar artefactos deterministas. La ejecución en **Tiempo de Ejecución (Run-Time)** es 100% determinista y libre de inferencia de LLMs.
 
-### 1. Invariantes Arquitectónicos
-1. **Cero IA en Tiempo de Ejecución:** Sin llamadas a LLMs dentro de extractores, DAGs o modelos SQL.
-2. **Fuente Única de Verdad para Contratos:** Todos los esquemas y reglas residen en `configs/contracts/` y `configs/ingestions/`.
-3. **Navegador Obscura sobre CDP:** Todo acceso web automatizado se realiza a través de Obscura (`obscura.sh`) conectado por CDP (`OBSCURA_CDP_URL`).
-4. **Integridad de Streaming a Rust:** Extracción transmitida en bruto a `SourceRuntime` (RustWorker); almacenamiento inmutable en RustFS S3 Landing y triaje hacia Tika (solo PDFs/DOCXs) y Bronze en PostgreSQL.
-5. **Compuertas Humanas (HITL):** Macro-H1, Producto OI y PR Merge bajo estricto control humano.
+## 2. Criterios de Inclusión (En-Scope: Lo que SÍ se debe buscar)
+<!--
+Define qué entidades, registros o secciones son de interés.
+Ejemplo:
+- Convocatorias abiertas y activas de financiamiento.
+- Becas de movilidad internacional para posgrado.
+- Licitaciones de consultoría técnica especializada.
+-->
 
----
 
-## English
+### Atributos Clave Requeridos en el Esquema / Target Contract Fields
+<!--
+Define los campos que esperas extraer y normalizar de cada registro.
+-->
+| Campo Canónico | Tipo | Descripción | Obligatorio |
+| :--- | :---: | :--- | :---: |
+| `id` | `string` | Identificador único del registro en la fuente | **Sí (PK)** |
+| `title` | `string` | Título formal de la oportunidad/registro | **Sí** |
+| `publish_date` | `date` | Fecha de publicación (`YYYY-MM-DD`) | **Sí** |
+| `source_url` | `string` | Enlace permanente hacia el registro | **Sí** |
+| `description` | `string` | Resumen o texto descriptivo principal | Recomendado |
 
-> **TARGET AUDIENCE:** Autonomous AI Agents (`Claude Code`, `source-scout`, `source-assessor`, `silver-designer`, `arch-reviewer`).  
-> **CORE PRINCIPLE:** AI operates strictly at **Design-Time** to generate deterministic artifacts. **Run-Time** execution is 100% deterministic and free of LLM inference.
 
-### 1. Architectural Invariants
-1. **Zero AI at Run-Time:** No LLM SDK imports or agent prompts in production extractors, DAGs, or dbt models.
-2. **Single Source of Truth for Contracts:** All contracts and declarations live in `configs/contracts/` and `configs/ingestions/`.
-3. **Browser Access via Obscura:** Playwright connects over CDP to Obscura (`obscura.sh` in Rust).
-4. **Stream-to-Rust Integrity:** Payloads stream directly to `SourceRuntime` (RustWorker); raw Landing in RustFS S3 and binary triage to Tika (PDF/DOCX only) and PostgreSQL Bronze.
-5. **Human Gates (HITL):** Macro-H1, Producto OI, and PR Merge remain strictly human-governed.
+## 3. Criterios de Exclusión (Out-of-Scope: Lo que se DEBE IGNORAR)
+<!--
+Indica explícitamente qué tipo de contenido o secciones deben descartarse.
+Ejemplo:
+- Compras rutinarias de suministros de oficina (tóner, papel).
+- Comunicados de prensa o noticias informativas sin convocatoria formal.
+- Formularios transaccionales protegidos por login.
+- Secciones de trámites burocráticos internos.
+-->

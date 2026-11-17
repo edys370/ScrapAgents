@@ -384,7 +384,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     sig = sub.add_parser("sign", help="HUMAN ONLY: record the approval of a gate")
     sig.add_argument("--id", required=True)
-    sig.add_argument("--gate", required=True, choices=("h1", "h2", "pr"))
+    sig.add_argument(
+        "--gate", default="h2", choices=("h1", "h2", "pr"), help="gate to sign (default: h2)"
+    )
     sig.add_argument("--by", required=True, help="your own name")
     sig.set_defaults(func=_sign)
 
@@ -396,10 +398,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     ssign = sub.add_parser(
         "sentinel-sign",
-        help="auto-sign H1/H2 as gate-sentinel when green lane + rules allow",
+        help="auto-sign unified gate H2 as gate-sentinel when green lane + rules allow",
     )
     ssign.add_argument("--id", required=True)
-    ssign.add_argument("--gate", required=True, choices=("h1", "h2"))
+    ssign.add_argument("--gate", default="h2", choices=("h1", "h2"))
     ssign.set_defaults(func=_sentinel_sign)
 
     auth = sub.add_parser(

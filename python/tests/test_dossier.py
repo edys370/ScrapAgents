@@ -43,22 +43,23 @@ def test_create_dossier_rejects_bad_input_and_duplicates(tmp_path):
 
 
 def test_phase_cannot_pass_a_pending_gate():
-    errors = check_state(_state("blueprint"))
-    assert any("gate h1" in e for e in errors)
+    errors = check_state(_state("implement"))
+    assert any("gate h2" in e for e in errors)
+    assert check_state(_state("blueprint")) == []
     assert check_state(_state("assessment")) == []
 
 
 def test_approved_gate_requires_a_human_name():
     approved = {"status": "approved", "approved_by": None}
-    assert any("approved_by" in e for e in check_state(_state("assessment", h1=approved)))
+    assert any("approved_by" in e for e in check_state(_state("blueprint", h2=approved)))
     signed = {"status": "approved", "approved_by": "Ana"}
-    assert check_state(_state("blueprint", h1=signed)) == []
+    assert check_state(_state("implement", h2=signed)) == []
 
 
 def test_done_requires_all_three_gates():
     signed = {"status": "approved", "approved_by": "Ana"}
-    assert check_state(_state("done", h1=signed, h2=signed, pr=signed)) == []
-    assert check_state(_state("done", h1=signed, h2=signed))
+    assert check_state(_state("done", h2=signed, pr=signed)) == []
+    assert check_state(_state("done", h2=signed))
 
 
 def _oi_layout(tmp_path, gates: dict | None):
@@ -83,18 +84,18 @@ def test_producto_oi_of_a_real_source_needs_a_dossier(tmp_path):
     assert "no dossier ingestions/simpler_grants" in error
 
 
-def test_producto_oi_needs_h1_and_h2_signed_by_a_human(tmp_path):
-    pending = {"h1": _gate("approved", "ana"), "h2": _gate("pending", None)}
+def test_producto_oi_needs_h2_signed_by_a_human(tmp_path):
+    pending = {"h2": _gate("pending", None)}
     models, dossiers = _oi_layout(tmp_path, pending)
     (error,) = check_producto_oi(models, dossiers)
     assert "gate h2" in error and "not approved" in error
 
-    unsigned = {"h1": _gate("approved", None), "h2": _gate("approved", "ana")}
+    unsigned = {"h2": _gate("approved", None)}
     models, dossiers = _oi_layout(tmp_path / "b", unsigned)
     (error,) = check_producto_oi(models, dossiers)
-    assert "gate h1" in error
+    assert "gate h2" in error
 
-    signed = {"h1": _gate("approved", "ana"), "h2": _gate("approved", "luis")}
+    signed = {"h2": _gate("approved", "ana")}
     models, dossiers = _oi_layout(tmp_path / "c", signed)
     assert check_producto_oi(models, dossiers) == []
 

@@ -10,8 +10,9 @@
 Arnés de diseño y plataforma determinista de ingesta, normalización y gobernanza de datos para el **Producto OI (Opportunity Intelligence)**.
 
 ### Enlaces Principales
-* 📖 **[Manual de Usuario Completo](docs/MANUAL_DE_USUARIO.md)**: Guía paso a paso para operar, crear fuentes y ejecutar el sistema.
-* 🎯 **[Criterios de Búsqueda y Contexto de Negocio](docs/contexto_de_busqueda_y_criterios.md)**: Alcance de lo que los agentes deben buscar y modelar.
+* 📖 **[Manual de Usuario Completo](docs/MANUAL_DE_USUARIO.md)**: Guía paso a paso para operar, crear fuentes y ejecutar el sistema pasando un enlace (URL).
+* 📝 **[Contexto de Scraping (Contex.md)](Contex.md)**: Plantilla para definir el contexto y objetivos de scraping de tu proyecto al clonar el repositorio.
+* 🎯 **[Criterios de Búsqueda y Contexto de Negocio](docs/contexto_de_busqueda_y_criterios.md)**: Guía de referencia y alcance para agentes y revisores.
 * 🏛️ **[Especificación Arquitectónica e Invariantes](AGENTS.md)**: Reglas fundacionales (Zero AI en ejecución, contratos y Obscura).
 
 ### Documentación por Áreas
@@ -44,8 +45,9 @@ make smoke                                             # prueba end-to-end de in
 Design-time harness and deterministic run-time data ingestion, normalization, and governance platform for **Producto OI (Opportunity Intelligence)**.
 
 ### Key Links
-* 📖 **[Complete User Manual](docs/MANUAL_DE_USUARIO.md)**: Step-by-step operational guide for creating sources and running pipelines.
-* 🎯 **[Search Criteria and Business Context](docs/contexto_de_busqueda_y_criterios.md)**: Scope defining what agents must search and model.
+* 📖 **[Complete User Manual](docs/MANUAL_DE_USUARIO.md)**: Step-by-step operational guide for creating sources and running pipelines from a URL link.
+* 📝 **[Scraping Context (Contex.md)](Contex.md)**: Template to define your project's custom scraping context and criteria when cloning.
+* 🎯 **[Search Criteria and Business Context](docs/contexto_de_busqueda_y_criterios.md)**: Reference guide and scope definition for agents and human reviewers.
 * 🏛️ **[Architectural Specification & Invariants](AGENTS.md)**: Foundational principles (Zero AI at runtime, contracts, and Obscura).
 
 ### Documentation by Areas
